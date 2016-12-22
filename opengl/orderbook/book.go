@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 
+	"github.com/lian/gdax/orderbook"
 	"github.com/lian/gdax/websocket"
 
 	font "github.com/lian/gonky/font/terminus"
@@ -22,7 +23,7 @@ type Orderbook struct {
 }
 
 func New(program *shader.Program, gdax *websocket.Client, id string, n int) *Orderbook {
-	width := 180
+	width := 300
 	padding := 10
 	s := &Orderbook{
 		ID:   id,
@@ -55,7 +56,22 @@ func (s *Orderbook) Render() {
 	limit := ((int(s.Texture.Height) / 2) / font.Height) - 1
 	bids, asks := book.StateCombined()
 
-	font.DrawString(data, 10, 5, fmt.Sprintf("%s", book.ID), fg1)
+	var latestPrice float64
+	i := len(book.Trades)
+	if i > 0 {
+		latestPrice = book.Trades[i-1].Price
+	} else {
+		if len(book.Ask) > 0 {
+			latestPrice = bids[0].Price
+		}
+	}
+
+	var spread float64
+	if len(bids) > 0 && len(asks) > 0 {
+		spread = asks[0].Price - bids[0].Price
+	}
+
+	font.DrawString(data, 10, 5, fmt.Sprintf("%s  %.2f", book.ID, latestPrice), fg1)
 
 	ask_limit := limit
 	if len(asks) < ask_limit {
@@ -81,6 +97,26 @@ func (s *Orderbook) Render() {
 		text := fmt.Sprintf("%.8f    %.2f", s.Size, s.Price)
 		y += font.Height
 		font.DrawString(data, x, y, text, fg1)
+	}
+
+	y = (int(s.Texture.Height) / 2)
+	text := fmt.Sprintf("%.2f", spread)
+	font.DrawString(data, x, y, text, fg1)
+
+	x = 180
+	y = 20 - font.Height
+	for i := len(book.Trades) - 1; i >= 0; i-- {
+		trade := book.Trades[i]
+
+		var fg color.Color
+		if trade.Side == orderbook.BidSide {
+			fg = color.RGBA{0xff, 0x00, 0xd5, 0xff}
+		} else {
+			fg = color.RGBA{0x00, 0xff, 0xd5, 0xff}
+		}
+		text := fmt.Sprintf("%.8f  %.2f", trade.Size, trade.Price)
+		y += font.Height
+		font.DrawString(data, x, y, text, fg)
 	}
 
 	s.Texture.Write(&data.Pix)

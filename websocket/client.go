@@ -2,9 +2,7 @@ package websocket
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
-	"os"
 	"strconv"
 
 	"github.com/gorilla/websocket"
@@ -101,7 +99,8 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 			"side":           data["side"].(string),
 			"maker_order_id": data["maker_order_id"].(string),
 			"taker_order_id": data["taker_order_id"].(string),
-		})
+			"time":           data["time"].(string),
+		}, false)
 		c.BookChanged(book)
 		break
 	case "change":
@@ -119,7 +118,8 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 				"price":          price,
 				"side":           data["side"].(string),
 				"maker_order_id": data["order_id"].(string),
-			})
+				//"time":           data["time"].(string),
+			}, true)
 			c.BookChanged(book)
 		}
 		break
@@ -129,6 +129,8 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 func (c *Client) Run() {
 	c.Connect()
 	defer c.Socket.Close()
+
+	initialSync := true
 
 	for {
 		msgType, message, err := c.Socket.ReadMessage()
@@ -141,42 +143,39 @@ func (c *Client) Run() {
 			continue
 		}
 
+		if initialSync {
+			for _, book := range c.Books {
+				SyncBook(book)
+			}
+			initialSync = false
+			continue
+		}
+
 		var header PacketHeader
 		if err := json.Unmarshal(message, &header); err != nil {
 			log.Println("header-parse:", err)
-			return
+			continue
 		}
 
 		var book *orderbook.Book
 		var ok bool
 		if book, ok = c.Books[header.ProductID]; !ok {
-			log.Println("book not found")
-			return
-		}
-
-		if book.SyncSequence == 0 {
-			err := SyncBook(book)
-			if err != nil {
-				continue
-			}
-		}
-
-		if header.Sequence <= book.SyncSequence {
-			//fmt.Println("skip", header.Sequence)
+			log.Println("book not found", header.ProductID)
 			continue
-		} else {
-			if header.Sequence <= book.LastSequence {
-				fmt.Println("skip_last_sequence", book.LastSequence, header.Sequence)
-				os.Exit(1)
-			} else {
-				if header.Sequence == (book.LastSequence + 1) {
-					book.LastSequence = header.Sequence
-				} else {
-					fmt.Println("sequence_gap", book.LastSequence, header.Sequence)
-					os.Exit(1)
-				}
-			}
 		}
+
+		if header.Sequence <= book.Sequence {
+			// Ignore old messages
+			continue
+		}
+
+		if header.Sequence != (book.Sequence + 1) {
+			// Message lost, resync
+			SyncBook(book)
+			continue
+		}
+
+		book.Sequence = header.Sequence
 
 		c.HandleMessage(book, header, message)
 	}

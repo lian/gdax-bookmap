@@ -11,6 +11,7 @@ import (
 )
 
 func SyncBook(book *orderbook.Book) error {
+	fmt.Println("sync", book.ID)
 
 	full, err := FetchRawBook(3, book.ID)
 	if err != nil {
@@ -18,8 +19,8 @@ func SyncBook(book *orderbook.Book) error {
 		return err
 	}
 	if seq, ok := full["sequence"]; ok {
-		book.LastSequence = uint64(seq.(float64))
-		book.SyncSequence = uint64(seq.(float64))
+		book.Clear()
+		book.Sequence = uint64(seq.(float64))
 
 		if bids, ok := full["bids"].([]interface{}); ok {
 			//fmt.Println("bids len", len(bids))

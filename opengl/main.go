@@ -107,9 +107,9 @@ func main() {
 	//bookUpdated := make(chan string)
 	gdax := websocket.New([]string{
 		"BTC-USD",
-		"BTC-EUR",
-		"ETH-USD",
-		"LTC-USD",
+		//"BTC-EUR",
+		//"ETH-USD",
+		//"LTC-USD",
 	}, nil)
 	//}, bookUpdated)
 	go gdax.Run()

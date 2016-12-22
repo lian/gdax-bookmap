@@ -1,6 +1,9 @@
 package orderbook
 
-import "sort"
+import (
+	"sort"
+	"time"
+)
 
 type Side uint8
 
@@ -12,6 +15,7 @@ type Order struct {
 	Size  float64
 	Price float64
 	Side  Side
+	Time  time.Time
 }
 
 type BookLevel struct {
@@ -45,21 +49,12 @@ func (a BookLevelList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a BookLevelList) Less(i, j int) bool { return a[i].Price < a[j].Price }
 
 type Book struct {
-	ID           string
-	Bid          BookLevelList
-	Ask          BookLevelList
-	OrderMap     map[string]*Order
-	LastSequence uint64
-	SyncSequence uint64
-}
-
-func NewBook(id string) *Book {
-	return &Book{
-		ID:       id,
-		Bid:      []*BookLevel{},
-		Ask:      []*BookLevel{},
-		OrderMap: map[string]*Order{},
-	}
+	ID       string
+	Bid      BookLevelList
+	Ask      BookLevelList
+	OrderMap map[string]*Order
+	Sequence uint64
+	Trades   []*Order
 }
 
 func New(id string) *Book {
@@ -68,7 +63,14 @@ func New(id string) *Book {
 		Bid:      []*BookLevel{},
 		Ask:      []*BookLevel{},
 		OrderMap: map[string]*Order{},
+		Trades:   []*Order{},
 	}
+}
+
+func (b *Book) Clear() {
+	b.Bid = []*BookLevel{}
+	b.Ask = []*BookLevel{}
+	b.OrderMap = map[string]*Order{}
 }
 
 func (b *Book) Add(data map[string]interface{}) {
@@ -156,15 +158,18 @@ func (b *Book) FindLevel(order *Order) (*BookLevel, bool) {
 	return &BookLevel{}, false
 }
 
-func (b *Book) Match(data map[string]interface{}) {
+func (b *Book) Match(data map[string]interface{}, change bool) {
 	match := &Order{
 		Size:  data["size"].(float64),
 		Price: data["price"].(float64),
 	}
-	if data["side"].(string) == "bid" {
+	if data["side"].(string) == "buy" {
 		match.Side = BidSide
 	} else {
 		match.Side = AskSide
+	}
+	if _, ok := data["time"]; ok {
+		match.Time, _ = time.Parse("2006-01-02T15:04:05.999999Z07:00", data["time"].(string))
 	}
 
 	var maker_id, taker_id string
@@ -196,6 +201,19 @@ func (b *Book) Match(data map[string]interface{}) {
 
 	if order.Size <= 0 {
 		b.Remove(order.ID)
+	}
+
+	if !change {
+		b.AddTrade(match)
+	}
+}
+
+func (b *Book) AddTrade(match *Order) {
+	//fmt.Println("trade", match)
+	if len(b.Trades) >= 50 {
+		b.Trades = append(b.Trades[1:], match)
+	} else {
+		b.Trades = append(b.Trades, match)
 	}
 }
 
