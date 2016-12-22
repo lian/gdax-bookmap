@@ -55,8 +55,8 @@ func resizeCallback(w *glfw.Window, width int, height int) {
 	shader.SetupPerspective(width, height, program)
 }
 
-var WindowWidth int = 800
-var WindowHeight int = 600
+var WindowWidth int = 1250
+var WindowHeight int = 530
 
 var program *shader.Program
 
@@ -107,9 +107,9 @@ func main() {
 	//bookUpdated := make(chan string)
 	gdax := websocket.New([]string{
 		"BTC-USD",
-		//"BTC-EUR",
-		//"ETH-USD",
-		//"LTC-USD",
+		"BTC-EUR",
+		"ETH-USD",
+		"LTC-USD",
 	}, nil)
 	//}, bookUpdated)
 	go gdax.Run()
