@@ -10,11 +10,12 @@ import (
 	"github.com/lian/gdax/orderbook"
 )
 
-func New(products []string, channel chan string) *Client {
+func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 	c := &Client{
-		Updated:  channel,
-		Products: []string{},
-		Books:    map[string]*orderbook.Book{},
+		BookUpdated:   bookUpdated,
+		TradesUpdated: tradesUpdated,
+		Products:      []string{},
+		Books:         map[string]*orderbook.Book{},
 	}
 
 	for _, name := range products {
@@ -25,15 +26,19 @@ func New(products []string, channel chan string) *Client {
 }
 
 type Client struct {
-	Updated  chan string
-	Products []string
-	Books    map[string]*orderbook.Book
-	Socket   *websocket.Conn
+	BookUpdated   chan string
+	TradesUpdated chan string
+	Products      []string
+	Books         map[string]*orderbook.Book
+	Socket        *websocket.Conn
 }
 
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.Books[name] = orderbook.New(name)
+	if c.TradesUpdated != nil {
+		c.Books[name].TradesUpdated = c.TradesUpdated
+	}
 }
 
 func (c *Client) Connect() {
@@ -55,11 +60,11 @@ type PacketHeader struct {
 }
 
 func (c *Client) BookChanged(book *orderbook.Book) {
-	if c.Updated == nil {
+	if c.BookUpdated == nil {
 		return
 	}
 
-	c.Updated <- book.ID
+	c.BookUpdated <- book.ID
 }
 
 func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, message []byte) {
@@ -127,6 +132,12 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 }
 
 func (c *Client) Run() {
+	for {
+		c.run()
+	}
+}
+
+func (c *Client) run() {
 	c.Connect()
 	defer c.Socket.Close()
 

@@ -14,6 +14,7 @@ import (
 	"github.com/lian/gonky/shader"
 
 	opengl_orderbook "github.com/lian/gdax/opengl/orderbook"
+	opengl_trades "github.com/lian/gdax/opengl/trades"
 )
 
 func init() {
@@ -55,8 +56,9 @@ func resizeCallback(w *glfw.Window, width int, height int) {
 	shader.SetupPerspective(width, height, program)
 }
 
-var WindowWidth int = 1250
-var WindowHeight int = 530
+//var WindowWidth int = 1250
+var WindowWidth int = 924
+var WindowHeight int = 720
 
 var program *shader.Program
 
@@ -105,19 +107,26 @@ func main() {
 
 	//bookUpdated := make(chan string, 1024)
 	//bookUpdated := make(chan string)
+	tradesUpdated := make(chan string)
 	gdax := websocket.New([]string{
 		"BTC-USD",
 		"BTC-EUR",
-		"ETH-USD",
-		"LTC-USD",
-	}, nil)
+		//"ETH-USD",
+		//"LTC-USD",
+	}, nil, tradesUpdated)
 	//}, bookUpdated)
 	go gdax.Run()
 
 	orderbooks := map[string]*opengl_orderbook.Orderbook{}
+	trades := map[string]*opengl_trades.Trades{}
 
-	for n, name := range gdax.Products {
-		orderbooks[name] = opengl_orderbook.New(program, gdax, name, n)
+	padding := 10.0
+	x := padding
+	for _, name := range gdax.Products {
+		orderbooks[name] = opengl_orderbook.New(program, gdax, name, 700, x)
+		x += orderbooks[name].Texture.Width + padding
+		trades[name] = opengl_trades.New(program, gdax, name, 700, x)
+		x += trades[name].Texture.Width + padding
 	}
 
 	// Configure global settings
@@ -139,6 +148,11 @@ func main() {
 			}
 		//case <-bookUpdated:
 		//	orderbook.Render()
+		case <-tradesUpdated:
+			//fmt.Println("tradesUpdated")
+			for _, trade := range trades {
+				trade.Render()
+			}
 		case <-redrawChan:
 			//fmt.Println("forced redraw")
 		}
@@ -148,6 +162,9 @@ func main() {
 		program.Use()
 		for _, orderbook := range orderbooks {
 			orderbook.Texture.Draw()
+		}
+		for _, trade := range trades {
+			trade.Texture.Draw()
 		}
 
 		window.SwapBuffers()

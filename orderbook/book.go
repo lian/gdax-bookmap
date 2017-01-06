@@ -49,12 +49,13 @@ func (a BookLevelList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a BookLevelList) Less(i, j int) bool { return a[i].Price < a[j].Price }
 
 type Book struct {
-	ID       string
-	Bid      BookLevelList
-	Ask      BookLevelList
-	OrderMap map[string]*Order
-	Sequence uint64
-	Trades   []*Order
+	ID            string
+	Bid           BookLevelList
+	Ask           BookLevelList
+	OrderMap      map[string]*Order
+	Sequence      uint64
+	Trades        []*Order
+	TradesUpdated chan string
 }
 
 func New(id string) *Book {
@@ -214,6 +215,9 @@ func (b *Book) AddTrade(match *Order) {
 		b.Trades = append(b.Trades[1:], match)
 	} else {
 		b.Trades = append(b.Trades, match)
+	}
+	if b.TradesUpdated != nil {
+		b.TradesUpdated <- b.ID
 	}
 }
 

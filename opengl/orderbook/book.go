@@ -5,7 +5,6 @@ import (
 	"image"
 	"image/color"
 
-	"github.com/lian/gdax/orderbook"
 	"github.com/lian/gdax/websocket"
 
 	font "github.com/lian/gonky/font/terminus"
@@ -22,17 +21,19 @@ type Orderbook struct {
 	gdax    *websocket.Client
 }
 
-func New(program *shader.Program, gdax *websocket.Client, id string, n int) *Orderbook {
-	width := 300
-	padding := 10
+func New(program *shader.Program, gdax *websocket.Client, id string, height float64, x float64) *Orderbook {
+	sizePadding := font.Width * 15
+	pricePadding := sizePadding + (font.Width * 12)
+	width := pricePadding + 20
+
 	s := &Orderbook{
 		ID:   id,
 		gdax: gdax,
 		Texture: &texture.Texture{
-			X:      float64(padding + (n * (width + padding))),
-			Y:      510,
+			X:      x,
+			Y:      height + 10,
 			Width:  float64(width),
-			Height: 500,
+			Height: height,
 		},
 	}
 	s.Texture.Setup(program)
@@ -44,8 +45,10 @@ func (s *Orderbook) Render() {
 	gc := draw2dimg.NewGraphicContext(data)
 
 	bg1 := color.RGBA{0x15, 0x23, 0x2c, 0xff}
-	//bg2 := color.RGBA{0x2f, 0x3d, 0x45, 0xff}
-	fg1 := color.RGBA{0xce, 0xd2, 0xd5, 0xff}
+	//fg1 := color.RGBA{0xce, 0xd2, 0xd5, 0xff}
+	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
+	green := color.RGBA{0x84, 0xf7, 0x66, 0xff}
+	red := color.RGBA{0xff, 0x69, 0x39, 0xff}
 
 	gc.SetFillColor(bg1)
 	draw2dkit.Rectangle(gc, 0, 0, s.Texture.Width, s.Texture.Height)
@@ -53,7 +56,11 @@ func (s *Orderbook) Render() {
 
 	book := s.gdax.Books[s.ID]
 
-	limit := ((int(s.Texture.Height) / 2) / font.Height) - 1
+	sizePadding := font.Width * 15
+	pricePadding := sizePadding + (font.Width * 12)
+	lineHeight := font.Height + 2
+
+	limit := ((int(s.Texture.Height) / 2) / lineHeight) - 2
 	bids, asks := book.StateCombined()
 
 	var latestPrice float64
@@ -66,11 +73,6 @@ func (s *Orderbook) Render() {
 		}
 	}
 
-	var spread float64
-	if len(bids) > 0 && len(asks) > 0 {
-		spread = asks[0].Price - bids[0].Price
-	}
-
 	font.DrawString(data, 10, 5, fmt.Sprintf("%s  %.2f", book.ID, latestPrice), fg1)
 
 	ask_limit := limit
@@ -78,12 +80,18 @@ func (s *Orderbook) Render() {
 		ask_limit = len(asks)
 	}
 
-	x := 10
+	x := 0
 	y := (int(s.Texture.Height) / 2)
 	for _, s := range asks[:ask_limit] {
-		text := fmt.Sprintf("%.8f    %.2f", s.Size, s.Price)
-		y -= font.Height
-		font.DrawString(data, x, y, text, fg1)
+		y -= lineHeight
+
+		size := fmt.Sprintf("%.8f", s.Size)
+		cx := x + (sizePadding - (len(size) * font.Width))
+		font.DrawString(data, cx, y, size, fg1)
+
+		price := fmt.Sprintf("%.2f", s.Price)
+		cx = x + (pricePadding - (len(price) * font.Width))
+		font.DrawString(data, cx, y, price, red)
 	}
 
 	bid_limit := limit
@@ -91,33 +99,29 @@ func (s *Orderbook) Render() {
 		bid_limit = len(bids)
 	}
 
-	x = 10
+	x = 0
 	y = (int(s.Texture.Height) / 2)
 	for _, s := range bids[:bid_limit] {
-		text := fmt.Sprintf("%.8f    %.2f", s.Size, s.Price)
-		y += font.Height
-		font.DrawString(data, x, y, text, fg1)
+		y += lineHeight
+
+		size := fmt.Sprintf("%.8f", s.Size)
+		cx := x + (sizePadding - (len(size) * font.Width))
+		font.DrawString(data, cx, y, size, fg1)
+
+		price := fmt.Sprintf("%.2f", s.Price)
+		cx = x + (pricePadding - (len(price) * font.Width))
+		font.DrawString(data, cx, y, price, green)
 	}
 
-	y = (int(s.Texture.Height) / 2)
+	var spread float64
+	if len(bids) > 0 && len(asks) > 0 {
+		spread = asks[0].Price - bids[0].Price
+	}
+
 	text := fmt.Sprintf("%.2f", spread)
+	y = (int(s.Texture.Height) / 2)
+	x = (pricePadding - (len(text) * font.Width))
 	font.DrawString(data, x, y, text, fg1)
-
-	x = 180
-	y = 20 - font.Height
-	for i := len(book.Trades) - 1; i >= 0; i-- {
-		trade := book.Trades[i]
-
-		var fg color.Color
-		if trade.Side == orderbook.BidSide {
-			fg = color.RGBA{0xff, 0x00, 0xd5, 0xff}
-		} else {
-			fg = color.RGBA{0x00, 0xff, 0xd5, 0xff}
-		}
-		text := fmt.Sprintf("%.8f  %.2f", trade.Size, trade.Price)
-		y += font.Height
-		font.DrawString(data, x, y, text, fg)
-	}
 
 	s.Texture.Write(&data.Pix)
 }
