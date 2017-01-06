@@ -71,7 +71,7 @@ func (s *Trades) Render() {
 		font.DrawString(data, 10, 5, book.ID, fg1)
 	}
 
-	limit := (int(s.Texture.Height) / lineHeight) - 4
+	limit := (int(s.Texture.Height) / lineHeight) - 3
 	tradesCount := len(book.Trades)
 	if tradesCount < limit {
 		limit = tradesCount
