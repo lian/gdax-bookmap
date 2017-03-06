@@ -105,16 +105,14 @@ func main() {
 
 	shader.SetupPerspective(WindowWidth, WindowHeight, program)
 
-	//bookUpdated := make(chan string, 1024)
-	//bookUpdated := make(chan string)
+	bookUpdated := make(chan string, 1024)
 	tradesUpdated := make(chan string)
 	gdax := websocket.New([]string{
 		"BTC-USD",
 		"BTC-EUR",
 		//"ETH-USD",
 		//"LTC-USD",
-	}, nil, tradesUpdated)
-	//}, bookUpdated)
+	}, bookUpdated, tradesUpdated)
 	go gdax.Run()
 
 	orderbooks := map[string]*opengl_orderbook.Orderbook{}
@@ -122,11 +120,13 @@ func main() {
 
 	padding := 10.0
 	x := padding
+	updatedOrderbook := map[string]bool{}
 	for _, name := range gdax.Products {
 		orderbooks[name] = opengl_orderbook.New(program, gdax, name, 700, x)
 		x += orderbooks[name].Texture.Width + padding
 		trades[name] = opengl_trades.New(program, gdax, name, 700, x)
 		x += trades[name].Texture.Width + padding
+		updatedOrderbook[name] = true
 	}
 
 	// Configure global settings
@@ -142,17 +142,28 @@ func main() {
 		case <-pollEventsTimer.C:
 			glfw.PollEvents()
 			continue
+		case id := <-bookUpdated:
+			updatedOrderbook[id] = true
+			s := len(bookUpdated)
+			for i := s; i < s; i += 1 {
+				id = <-bookUpdated
+				updatedOrderbook[id] = true
+			}
+			continue
 		case <-tick.C:
-			for _, orderbook := range orderbooks {
-				orderbook.Render()
+			none := true
+			for id, ok := range updatedOrderbook {
+				if ok {
+					none = false
+					updatedOrderbook[id] = false
+					orderbooks[id].Render()
+				}
 			}
-		//case <-bookUpdated:
-		//	orderbook.Render()
-		case <-tradesUpdated:
-			//fmt.Println("tradesUpdated")
-			for _, trade := range trades {
-				trade.Render()
+			if none {
+				continue
 			}
+		case id := <-tradesUpdated:
+			trades[id].Render()
 		case <-redrawChan:
 			//fmt.Println("forced redraw")
 		}
