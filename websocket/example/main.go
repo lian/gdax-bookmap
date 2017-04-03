@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
+	"time"
 
-	"github.com/lian/gdax/websocket"
+	"github.com/lian/gdax-bookmap/websocket"
 )
 
 func PrintBooks(gdax *websocket.Client) {
@@ -43,21 +44,30 @@ func PrintBooks(gdax *websocket.Client) {
 
 func main() {
 
-	bookUpdated := make(chan string, 1024)
+	//bookUpdated := make(chan string, 1024)
 
 	gdax := websocket.New([]string{
 		"BTC-USD",
-		"BTC-EUR",
+		//"BTC-EUR",
 		//"ETH-USD",
 		//"LTC-USD",
-	}, bookUpdated)
+	}, nil, nil)
 
 	go gdax.Run()
 
-	for {
-		select {
-		case <-bookUpdated:
-			PrintBooks(gdax)
-		}
+	now := time.Now()
+	t := time.NewTicker(5 * time.Second)
+
+	for c := range t.C {
+		fmt.Println(c.Sub(now), gdax.DBCount)
 	}
+
+	/*
+		for {
+			select {
+			case <-bookUpdated:
+				PrintBooks(gdax)
+			}
+		}
+	*/
 }

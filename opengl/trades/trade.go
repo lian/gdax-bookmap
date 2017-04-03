@@ -5,8 +5,8 @@ import (
 	"image"
 	"image/color"
 
-	"github.com/lian/gdax/orderbook"
-	"github.com/lian/gdax/websocket"
+	"github.com/lian/gdax-bookmap/orderbook"
+	"github.com/lian/gdax-bookmap/websocket"
 
 	font "github.com/lian/gonky/font/terminus"
 
@@ -48,7 +48,8 @@ func (s *Trades) Render() {
 
 	bg1 := color.RGBA{0x15, 0x23, 0x2c, 0xff}
 	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
-	green := color.RGBA{0x84, 0xf7, 0x66, 0xff}
+	//green := color.RGBA{0x84, 0xf7, 0x66, 0xff}
+	green := color.RGBA{0x4d, 0xa5, 0x3c, 0xff}
 	red := color.RGBA{0xff, 0x69, 0x39, 0xff}
 
 	gc.SetFillColor(bg1)

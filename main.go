@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"runtime"
@@ -9,13 +10,17 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 
-	"github.com/lian/gdax/websocket"
+	"github.com/lian/gdax-bookmap/websocket"
 
 	"github.com/lian/gonky/shader"
 
-	opengl_orderbook "github.com/lian/gdax/opengl/orderbook"
-	opengl_trades "github.com/lian/gdax/opengl/trades"
+	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
+	opengl_orderbook "github.com/lian/gdax-bookmap/opengl/orderbook"
+	opengl_trades "github.com/lian/gdax-bookmap/opengl/trades"
+	//_ "net/http/pprof"
 )
+
+var ActiveProduct string = "BTC-USD"
 
 func init() {
 	runtime.LockOSThread()
@@ -35,6 +40,55 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 	//fmt.Printf("%v %d, %v %v\n", key, scancode, action, mods)
 	if key == glfw.KeyEscape && action == glfw.Press {
 		window.SetShouldClose(true)
+	} else if key == glfw.KeyS && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.PriceScrollPosition += bm.PriceSteps
+		bm.Graph.ClearSlotRows()
+	} else if key == glfw.KeyW && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.PriceScrollPosition -= bm.PriceSteps
+		bm.Graph.ClearSlotRows()
+	} else if key == glfw.KeyD && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.ViewportStep = bm.ViewportStep * 2
+		bm.Graph.SlotSteps = bm.ViewportStep
+		bm.Graph.SetStart(bm.Graph.Start)
+	} else if key == glfw.KeyA && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.ViewportStep = bm.ViewportStep / 2
+		bm.Graph.SlotSteps = bm.ViewportStep
+		bm.Graph.SetStart(bm.Graph.Start)
+	} else if key == glfw.KeyJ && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.MaxSizeHisto = bm.MaxSizeHisto * 2
+	} else if key == glfw.KeyK && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.MaxSizeHisto = bm.MaxSizeHisto / 2
+	} else if key == glfw.KeyUp && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.PriceScrollPosition = 0
+		bm.PriceSteps = bm.PriceSteps * 2
+		bm.InitPriceScrollPosition()
+		bm.Graph.ClearSlotRows()
+	} else if key == glfw.KeyDown && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.PriceScrollPosition = 0
+		bm.PriceSteps = bm.PriceSteps / 2
+		bm.InitPriceScrollPosition()
+		bm.Graph.ClearSlotRows()
+	} else if key == glfw.KeyLeft && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.ColumnWidth -= 2
+	} else if key == glfw.KeyRight && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.ColumnWidth += 2
+	} else if key == glfw.KeyC && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.PriceScrollPosition = 0.0
+		bm.InitPriceScrollPosition()
+	} else if key == glfw.KeyT && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.Graph.SetStart(bm.Graph.Start)
 	}
 	triggerRedraw()
 }
@@ -57,12 +111,22 @@ func resizeCallback(w *glfw.Window, width int, height int) {
 }
 
 //var WindowWidth int = 1250
-var WindowWidth int = 924
+var WindowWidth int = 1280
 var WindowHeight int = 720
 
 var program *shader.Program
+var bookmaps map[string]*opengl_bookmap.Bookmap
 
 func main() {
+	flag.StringVar(&ActiveProduct, "pair", "BTC-USD", "gdax Product ID")
+	flag.Parse()
+
+	/*
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	*/
+
 	if err := glfw.Init(); err != nil {
 		log.Fatalln("failed to initialize glfw:", err)
 	}
@@ -107,15 +171,11 @@ func main() {
 
 	bookUpdated := make(chan string, 1024)
 	tradesUpdated := make(chan string)
-	gdax := websocket.New([]string{
-		"BTC-USD",
-		"BTC-EUR",
-		//"ETH-USD",
-		//"LTC-USD",
-	}, bookUpdated, tradesUpdated)
+	gdax := websocket.New([]string{ActiveProduct}, bookUpdated, tradesUpdated)
 	go gdax.Run()
 
 	orderbooks := map[string]*opengl_orderbook.Orderbook{}
+	bookmaps = map[string]*opengl_bookmap.Bookmap{}
 	trades := map[string]*opengl_trades.Trades{}
 
 	padding := 10.0
@@ -124,6 +184,10 @@ func main() {
 	for _, name := range gdax.Products {
 		orderbooks[name] = opengl_orderbook.New(program, gdax, name, 700, x)
 		x += orderbooks[name].Texture.Width + padding
+		bookmaps[name] = opengl_bookmap.New(program, 800, 700, x, gdax.Books[ActiveProduct], gdax)
+		//width := float64(WindowWidth) - x - 254 // 254 from trades widget
+		//bookmaps[name] = opengl_bookmap.New(program, width, 700, x, gdax.Books[ActiveProduct], gdax)
+		x += bookmaps[name].Texture.Width + padding
 		trades[name] = opengl_trades.New(program, gdax, name, 700, x)
 		x += trades[name].Texture.Width + padding
 		updatedOrderbook[name] = true
@@ -136,6 +200,9 @@ func main() {
 
 	pollEventsTimer := time.NewTicker(time.Millisecond * 100)
 	tick := time.NewTicker(time.Millisecond * 500)
+	second := time.NewTicker(time.Second * 1)
+
+	//lastWidth := float64(WindowWidth)
 
 	for !window.ShouldClose() {
 		select {
@@ -144,12 +211,17 @@ func main() {
 			continue
 		case id := <-bookUpdated:
 			updatedOrderbook[id] = true
+			//bookmaps[id].BookUpdated(gdax.Books[id])
+
 			s := len(bookUpdated)
 			for i := s; i < s; i += 1 {
 				id = <-bookUpdated
+				//bookmaps[id].BookUpdated(gdax.Books[id])
 				updatedOrderbook[id] = true
 			}
 			continue
+		case id := <-tradesUpdated:
+			trades[id].Render()
 		case <-tick.C:
 			none := true
 			for id, ok := range updatedOrderbook {
@@ -162,8 +234,18 @@ func main() {
 			if none {
 				continue
 			}
-		case id := <-tradesUpdated:
-			trades[id].Render()
+		case <-second.C:
+			bookmap := bookmaps[ActiveProduct]
+			/*
+				if lastWidth != float64(WindowWidth) {
+					lastWidth = float64(WindowWidth)
+					bookmap.UpdateTexture(lastWidth-(orderbooks[ActiveProduct].Texture.Width+padding)-254-(padding*3), float64(WindowHeight), bookmap.Texture.X, program)
+					trade := trades[ActiveProduct]
+					trade.Texture.UpdatePosition(lastWidth-254-padding, trade.Texture.Y)
+				}
+			*/
+			bookmap.Render()
+
 		case <-redrawChan:
 			//fmt.Println("forced redraw")
 		}
@@ -171,8 +253,12 @@ func main() {
 		gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 		program.Use()
+
 		for _, orderbook := range orderbooks {
 			orderbook.Texture.Draw()
+		}
+		for _, bookmap := range bookmaps {
+			bookmap.Texture.Draw()
 		}
 		for _, trade := range trades {
 			trade.Texture.Draw()

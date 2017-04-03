@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/lian/gdax/orderbook"
+	"github.com/lian/gdax-bookmap/orderbook"
 )
 
-func SyncBook(book *orderbook.Book) error {
+func SyncBook(book *orderbook.Book, client *Client) error {
 	fmt.Println("sync", book.ID)
 
 	full, err := FetchRawBook(3, book.ID)
@@ -18,7 +18,13 @@ func SyncBook(book *orderbook.Book) error {
 		fmt.Println(err)
 		return err
 	}
+
 	if seq, ok := full["sequence"]; ok {
+		full["type"] = "sync"
+		//full["time"] = time.Now().Add(-1 * time.Second).Format(TimeFormat)
+		//full["time"] = time.Now().Format(TimeFormat)
+		client.WriteDB(book, full)
+
 		book.Clear()
 		book.Sequence = uint64(seq.(float64))
 

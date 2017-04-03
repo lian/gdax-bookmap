@@ -2,13 +2,40 @@ package websocket
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"math"
+	"os"
 	"strconv"
+	"sync"
+	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
 
-	"github.com/lian/gdax/orderbook"
+	"github.com/lian/gdax-bookmap/orderbook"
 )
+
+const TimeFormat = "2006-01-02T15:04:05.999999Z07:00"
+
+func OpenDB(path string, buckets []string, readOnly bool) *bolt.DB {
+	db, err := bolt.Open(path, 0600, &bolt.Options{ReadOnly: readOnly})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	db.Update(func(tx *bolt.Tx) error {
+		for _, name := range buckets {
+			_, err := tx.CreateBucketIfNotExists([]byte(name))
+			if err != nil {
+				return fmt.Errorf("create bucket: %s %s", name, err)
+			}
+		}
+		return nil
+	})
+
+	return db
+}
 
 func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 	c := &Client{
@@ -16,21 +43,47 @@ func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 		TradesUpdated: tradesUpdated,
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
+		DBBatch:       []BatchChunk{},
+		DBBatchTime:   time.Now(),
 	}
 
 	for _, name := range products {
 		c.AddProduct(name)
 	}
 
+	path := "gdax_orderbooks.db"
+	if os.Getenv("GDAX_DB_PATH") != "" {
+		path = os.Getenv("GDAX_DB_PATH")
+	}
+
+	if os.Getenv("GDAX_DB_READONLY") != "" {
+		c.dbEnabled = false
+	} else {
+		c.dbEnabled = true
+	}
+	readonly := !c.dbEnabled
+
+	c.DB = OpenDB(path, products, readonly)
+
 	return c
 }
 
+type BatchChunk struct {
+	Time time.Time
+	Data []byte
+}
 type Client struct {
 	BookUpdated   chan string
 	TradesUpdated chan string
 	Products      []string
 	Books         map[string]*orderbook.Book
 	Socket        *websocket.Conn
+	DB            *bolt.DB
+	DBCount       int
+	DBLock        sync.Mutex
+	DBBatch       []BatchChunk
+	DBBatchTime   time.Time
+	dbEnabled     bool
 }
 
 func (c *Client) AddProduct(name string) {
@@ -67,17 +120,85 @@ func (c *Client) BookChanged(book *orderbook.Book) {
 	c.BookUpdated <- book.ID
 }
 
+func UnpackTimeKey(key []byte) time.Time {
+	i, _ := strconv.ParseInt(string(key), 10, 64)
+	t := time.Unix(0, i)
+	return t
+}
+
+func PackTimeKey(t time.Time) []byte {
+	return []byte(fmt.Sprintf("%d", t.UnixNano()))
+}
+
+func PackUnixNanoKey(nano int64) []byte {
+	return []byte(fmt.Sprintf("%d", nano))
+}
+
+func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
+	var t time.Time
+	if _, ok := data["time"].(string); ok {
+		t, _ = time.Parse(TimeFormat, data["time"].(string))
+	} else {
+		var lastKey []byte
+		c.DB.View(func(tx *bolt.Tx) error {
+			lastKey, _ = tx.Bucket([]byte(book.ID)).Cursor().Last()
+			return nil
+		})
+		if lastKey != nil {
+			t = UnpackTimeKey(lastKey)
+		} else {
+			t = time.Now().Add(-1 * time.Second)
+		}
+	}
+
+	c.DBBatch = append(c.DBBatch, BatchChunk{Time: t, Data: PackPacket(data)})
+	c.DBCount += 1
+
+	now := time.Now()
+	if now.Sub(c.DBBatchTime).Seconds() > 0.5 {
+		c.DBBatchTime = now
+		c.DB.Batch(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(book.ID))
+			b.FillPercent = 0.9
+			var err error
+			var key []byte
+			for _, chunk := range c.DBBatch {
+				nano := chunk.Time.UnixNano()
+				// hack because gdax api returns 2017-04-06T05:11:37.608000Z
+				// instead of docs-stated precision 2014-11-09T08:19:27.028459Z
+				for {
+					key = PackUnixNanoKey(nano)
+					if b.Get(key) == nil {
+						break
+					} else {
+						nano += 1
+					}
+				}
+				err = b.Put(key, chunk.Data)
+				if err != nil {
+					fmt.Println("HandleMessage DB Error", err)
+				}
+			}
+			return err
+		})
+		c.DBBatch = []BatchChunk{}
+	}
+}
+
 func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, message []byte) {
 	var data map[string]interface{}
 	if err := json.Unmarshal(message, &data); err != nil {
 		log.Fatal(err)
 	}
 
+	var writeDB bool
+
 	switch header.Type {
 	case "received":
 		// skip
 		break
 	case "open":
+		writeDB = true
 		price, _ := strconv.ParseFloat(data["price"].(string), 64)
 		size, _ := strconv.ParseFloat(data["remaining_size"].(string), 64)
 
@@ -91,10 +212,12 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 
 		break
 	case "done":
+		writeDB = true
 		book.Remove(data["order_id"].(string))
 		c.BookChanged(book)
 		break
 	case "match":
+		writeDB = true
 		price, _ := strconv.ParseFloat(data["price"].(string), 64)
 		size, _ := strconv.ParseFloat(data["size"].(string), 64)
 
@@ -112,6 +235,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 		if _, ok := book.OrderMap[data["order_id"].(string)]; !ok {
 			// if we don't know about the order, it is a change message for a received order
 		} else {
+			writeDB = true
 			// change messages are treated as match messages
 			old_size, _ := strconv.ParseFloat(data["old_size"].(string), 64)
 			new_size, _ := strconv.ParseFloat(data["new_size"].(string), 64)
@@ -128,6 +252,53 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 			c.BookChanged(book)
 		}
 		break
+	}
+
+	if c.dbEnabled {
+		if math.Mod(float64(c.DBCount), 5000) != 0 {
+			if writeDB {
+				c.WriteDB(book, data)
+			} else {
+				c.WriteDB(book, map[string]interface{}{
+					"type":     "ignore",
+					"sequence": data["sequence"],
+					"time":     data["time"],
+				})
+			}
+		} else {
+			fmt.Println("==> STORE NEW SYNC")
+			// store new sync
+			data := map[string]interface{}{
+				"type":     "sync",
+				"sequence": data["sequence"],
+				"time":     data["time"],
+			}
+
+			bids := [][]interface{}{}
+			asks := [][]interface{}{}
+
+			for _, bidlevel := range book.Bid {
+				for _, order := range bidlevel.Orders {
+					bids = append(bids, []interface{}{strconv.FormatFloat(order.Price, 'E', -1, 64), strconv.FormatFloat(order.Size, 'E', -1, 64), order.ID})
+				}
+			}
+
+			for _, bidlevel := range book.Ask {
+				for _, order := range bidlevel.Orders {
+					asks = append(asks, []interface{}{strconv.FormatFloat(order.Price, 'E', -1, 64), strconv.FormatFloat(order.Size, 'E', -1, 64), order.ID})
+				}
+			}
+
+			data["bids"] = bids
+			data["asks"] = asks
+
+			syncData, _ := json.Marshal(data)
+			if err := json.Unmarshal(syncData, &data); err != nil {
+				log.Fatal(err)
+			}
+
+			c.WriteDB(book, data)
+		}
 	}
 }
 
@@ -156,7 +327,7 @@ func (c *Client) run() {
 
 		if initialSync {
 			for _, book := range c.Books {
-				SyncBook(book)
+				SyncBook(book, c)
 			}
 			initialSync = false
 			continue
@@ -182,7 +353,7 @@ func (c *Client) run() {
 
 		if header.Sequence != (book.Sequence + 1) {
 			// Message lost, resync
-			SyncBook(book)
+			SyncBook(book, c)
 			continue
 		}
 
