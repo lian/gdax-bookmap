@@ -122,7 +122,7 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 		row := s.FindRow(state.Price)
 
 		if row == nil {
-			break
+			continue
 		}
 
 		row.Type = 0
@@ -150,7 +150,7 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 		row := s.FindRow(state.Price)
 
 		if row == nil {
-			break
+			continue
 		}
 
 		row.Type = 1
