@@ -54,43 +54,57 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm := bookmaps[ActiveProduct]
 		bm.ViewportStep = bm.ViewportStep * 2
 		bm.Graph.SlotSteps = bm.ViewportStep
-		bm.Graph.SetStart(bm.Graph.Start)
+		start := bm.Graph.CurrentTime.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
+		bm.Graph.SetStart(start)
 	} else if key == glfw.KeyA && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ViewportStep = bm.ViewportStep / 2
+		if bm.ViewportStep < 0 {
+			bm.ViewportStep = 1
+		}
 		bm.Graph.SlotSteps = bm.ViewportStep
-		bm.Graph.SetStart(bm.Graph.Start)
+		start := bm.Graph.CurrentTime.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
+		bm.Graph.SetStart(start)
 	} else if key == glfw.KeyJ && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = bm.MaxSizeHisto * 2
 	} else if key == glfw.KeyK && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = bm.MaxSizeHisto / 2
+		if bm.MaxSizeHisto < 0 {
+			bm.MaxSizeHisto = 1
+		}
 	} else if key == glfw.KeyUp && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
-		bm.PriceScrollPosition = 0
 		bm.PriceSteps = bm.PriceSteps * 2
+		bm.PriceScrollPosition = 0
 		bm.InitPriceScrollPosition()
 		bm.Graph.ClearSlotRows()
 	} else if key == glfw.KeyDown && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
-		bm.PriceScrollPosition = 0
 		bm.PriceSteps = bm.PriceSteps / 2
+		if bm.PriceSteps <= 0.0 {
+			bm.PriceSteps = 0.01
+		}
+		bm.PriceScrollPosition = 0
 		bm.InitPriceScrollPosition()
 		bm.Graph.ClearSlotRows()
 	} else if key == glfw.KeyLeft && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ColumnWidth -= 2
+		if bm.ColumnWidth < 0 {
+			bm.ColumnWidth = 1
+		}
 	} else if key == glfw.KeyRight && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ColumnWidth += 2
+		if bm.ColumnWidth > 30 {
+			bm.ColumnWidth = 30
+		}
 	} else if key == glfw.KeyC && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition = 0.0
 		bm.InitPriceScrollPosition()
-	} else if key == glfw.KeyT && action == glfw.Press {
-		bm := bookmaps[ActiveProduct]
-		bm.Graph.SetStart(bm.Graph.Start)
 	} else if key == glfw.KeyR && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = 0.0
