@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"runtime"
 	"time"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
+	"github.com/go-gl/mathgl/mgl32"
 
 	"github.com/lian/gdax-bookmap/websocket"
 
@@ -103,11 +105,42 @@ func refreshCallback(window *glfw.Window) {
 	triggerRedraw()
 }
 
-func resizeCallback(w *glfw.Window, width int, height int) {
+func SetupPerspective(width, height int, program *shader.Program) {
+	program.Use()
+
+	fov := float32(60.0)
+	eyeX := float32(WindowWidth) / 2.0
+	eyeY := float32(WindowHeight) / 2.0
+	ratio := float32(width) / float32(height)
+	halfFov := (math.Pi * fov) / 360.0
+	theTan := math.Tan(float64(halfFov))
+	dist := eyeY / float32(theTan)
+	nearDist := dist / 10.0
+	farDist := dist * 10.0
+
+	projection := mgl32.Perspective(mgl32.DegToRad(fov), ratio, nearDist, farDist)
+	projectionUniform := program.UniformLocation("projection")
+	gl.UniformMatrix4fv(projectionUniform, 1, false, &projection[0])
+
+	camera := mgl32.LookAtV(mgl32.Vec3{eyeX, eyeY, dist}, mgl32.Vec3{eyeX, eyeY, 0}, mgl32.Vec3{0, 1, 0})
+	cameraUniform := program.UniformLocation("camera")
+	gl.UniformMatrix4fv(cameraUniform, 1, false, &camera[0])
+
+	//model := mgl32.Ident4()
+	//modelUniform := program.UniformLocation("model")
+	//gl.UniformMatrix4fv(modelUniform, 1, false, &model[0])
+
+	textureUniform := program.UniformLocation("tex")
+	gl.Uniform1i(textureUniform, 0)
+
+	gl.BindFragDataLocation(program.ID, 0, gl.Str("outputColor\x00"))
+
+	gl.Viewport(0, 0, int32(width), int32(height))
+}
+
+func resizeCallback(_ *glfw.Window, width int, height int) {
 	//fmt.Println("RESIZE", width, height)
-	WindowWidth = width
-	WindowHeight = height
-	shader.SetupPerspective(width, height, program)
+	SetupPerspective(width, height, program)
 }
 
 //var WindowWidth int = 1250
@@ -147,7 +180,8 @@ func main() {
 		panic(err)
 	}
 	window.MakeContextCurrent()
-	window.SetSizeCallback(resizeCallback)
+	//window.SetSizeCallback(resizeCallback)
+	window.SetFramebufferSizeCallback(resizeCallback)
 	window.SetRefreshCallback(refreshCallback)
 	window.SetFocusCallback(focusCallback)
 	window.SetKeyCallback(keyCallback)
@@ -167,7 +201,8 @@ func main() {
 	//fmt.Printf("program: %v\n", program)
 	program.Use()
 
-	shader.SetupPerspective(WindowWidth, WindowHeight, program)
+	w, h := window.GetFramebufferSize()
+	SetupPerspective(w, h, program)
 
 	bookUpdated := make(chan string, 1024)
 	tradesUpdated := make(chan string)
