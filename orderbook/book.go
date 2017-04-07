@@ -135,8 +135,7 @@ func (b *Book) ResetStats() {
 		Ask: OrderStateList{},
 	}
 
-	for i := len(b.Bid) - 1; i >= 0; i-- {
-		level := b.Bid[i]
+	for _, level := range b.Bid {
 		bid := &OrderState{Price: level.Price}
 		for _, order := range level.Orders {
 			bid.Size += order.Size
@@ -171,6 +170,11 @@ func (b *Book) Add(data map[string]interface{}) {
 		order.Side = BidSide
 	} else {
 		order.Side = AskSide
+	}
+
+	if _, ok := b.OrderMap[order.ID]; ok {
+		//fmt.Println("BOOK ERROR: ignore duplicated order_id", order)
+		return
 	}
 
 	b.OrderMap[order.ID] = order
@@ -222,27 +226,23 @@ func (b *Book) AddLevel(order *Order) {
 	level := &BookLevel{Price: order.Price, Orders: []*Order{order}}
 	if order.Side == BidSide {
 		b.Bid = append(b.Bid, level)
-		//sort.Sort(b.Bid)
 	} else {
 		b.Ask = append(b.Ask, level)
-		//sort.Sort(b.Ask)
 	}
 
 	if b.Stats != nil && !b.SkipStatsUpdate { // SkipStatsUpdate here makes no sense
 		state := &OrderState{Price: order.Price, Size: order.Size, OrderCount: 1}
 		if order.Side == BidSide {
 			b.Stats.Bid = append(b.Stats.Bid, state)
-			//sort.Sort(b.Stats.Bid)
 		} else {
 			b.Stats.Ask = append(b.Stats.Ask, state)
-			//sort.Sort(b.Stats.Ask)
 		}
 	}
 }
 
 func (b *Book) RemoveLevel(side Side, level *BookLevel) {
 	if side == BidSide {
-		levels := make([]*BookLevel, 0, len(b.Bid))
+		levels := make([]*BookLevel, 0, len(b.Bid)-1)
 		for _, current := range b.Bid {
 			if current.Price == level.Price {
 				continue
@@ -251,7 +251,7 @@ func (b *Book) RemoveLevel(side Side, level *BookLevel) {
 		}
 		b.Bid = levels
 	} else {
-		levels := make([]*BookLevel, 0, len(b.Ask))
+		levels := make([]*BookLevel, 0, len(b.Ask)-1)
 		for _, current := range b.Ask {
 			if current.Price == level.Price {
 				continue
