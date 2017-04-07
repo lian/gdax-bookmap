@@ -360,5 +360,11 @@ func (c *Client) run() {
 		book.Sequence = header.Sequence
 
 		c.HandleMessage(book, header, message)
+
+		if book.Spread() < 0 {
+			// resync, something went wrong
+			fmt.Println("SYNC ERROR", book.Sequence)
+			SyncBook(book, c)
+		}
 	}
 }

@@ -118,6 +118,15 @@ func (b *Book) StatsCopy() *BookMapStatsCopy {
 
 	return s
 }
+func (b *Book) Spread() float64 {
+	sort.Sort(b.Bid)
+	sort.Sort(b.Ask)
+	var spread float64
+	if len(b.Bid) > 0 && len(b.Ask) > 0 {
+		spread = b.Ask[0].Price - b.Bid[len(b.Bid)-1].Price
+	}
+	return spread
+}
 
 func (b *Book) ResetStats() {
 	b.Stats = nil
@@ -197,6 +206,7 @@ func (b *Book) Add(data map[string]interface{}) {
 func (b *Book) Remove(order_id string) {
 	order, ok := b.OrderMap[order_id]
 	if !ok {
+		//fmt.Println("BOOK wanted to remove order but was not found", order_id)
 		return
 	}
 	delete(b.OrderMap, order_id)
@@ -213,7 +223,6 @@ func (b *Book) AddLevel(order *Order) {
 	if order.Side == BidSide {
 		b.Bid = append(b.Bid, level)
 		//sort.Sort(b.Bid)
-		//sort.Sort(b.Ask)
 	} else {
 		b.Ask = append(b.Ask, level)
 		//sort.Sort(b.Ask)
@@ -233,7 +242,7 @@ func (b *Book) AddLevel(order *Order) {
 
 func (b *Book) RemoveLevel(side Side, level *BookLevel) {
 	if side == BidSide {
-		levels := make([]*BookLevel, 0, len(b.Bid)-1)
+		levels := make([]*BookLevel, 0, len(b.Bid))
 		for _, current := range b.Bid {
 			if current.Price == level.Price {
 				continue
@@ -242,7 +251,7 @@ func (b *Book) RemoveLevel(side Side, level *BookLevel) {
 		}
 		b.Bid = levels
 	} else {
-		levels := make([]*BookLevel, 0, len(b.Ask)-1)
+		levels := make([]*BookLevel, 0, len(b.Ask))
 		for _, current := range b.Ask {
 			if current.Price == level.Price {
 				continue

@@ -72,7 +72,7 @@ func (g *Graph) SetEnd(end time.Time) bool {
 		fmt.Println("ERROR", "SetEnd", "end time before start time", g.Start, end)
 		return false
 	}
-	fmt.Println("Begin SetEnd", g.Start, end)
+	//fmt.Println("Begin SetEnd", g.Start, end)
 
 	g.End = end
 	count := 0
@@ -89,23 +89,23 @@ func (g *Graph) SetEnd(end time.Time) bool {
 		}
 
 		if new {
-			fmt.Println("added new slot")
+			//fmt.Println("added new slot")
 			if len(g.Timeslots) >= g.SlotCount {
 				g.Timeslots = append(g.Timeslots[1:], newSlot)
 			} else {
 				g.Timeslots = append(g.Timeslots, newSlot)
 			}
 		} else {
-			fmt.Println("updated slot")
+			//fmt.Println("updated slot")
 		}
 
 		if !more || (time.Now().Sub(start).Seconds() >= 1.0) {
-			fmt.Println("done updating slots")
+			//fmt.Println("done updating slots")
 			break
 		}
 	}
 
-	fmt.Println("End SetEnd", count, len(g.Timeslots), g.SlotCount)
+	fmt.Println("End SetEnd", count, len(g.Timeslots), g.SlotCount, string(g.CurrentKey), g.Start, end)
 	return true
 }
 
@@ -132,7 +132,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 		more = false
 	}
 
-	fmt.Println("Begin AddTimeslots", string(g.CurrentKey), curSlotStart, curSlotEnd, more)
+	//fmt.Println("Begin AddTimeslots", string(g.CurrentKey), curSlotStart, curSlotEnd, more)
 
 	var slot *TimeSlot
 
