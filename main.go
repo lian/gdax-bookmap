@@ -91,6 +91,9 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 	} else if key == glfw.KeyT && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.Graph.SetStart(bm.Graph.Start)
+	} else if key == glfw.KeyR && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.MaxSizeHisto = 0.0
 	}
 	triggerRedraw()
 }
