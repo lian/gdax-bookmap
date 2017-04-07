@@ -1,3 +1,10 @@
+# gdax-bookmap - orderbook depths graph
+
+![image](http://i.imgur.com/TAqyzeg.png)
+
+## pre-compiled for macOS
+[Alpha Releases](https://github.com/lian/gdax-bookmap/releases)
+
 ## build on linux
 
 ```
