@@ -137,8 +137,8 @@ func (s *Bookmap) Render() {
 	}
 
 	statsSlot := NewTimeSlot(s, now, now)
-	//stats := s.Graph.Book.Book.StateAsStats()
-	stats := s.Graph.Book.Book.StatsCopy()
+	stats := s.Graph.Book.Book.StateAsStats()
+	//stats := s.Graph.Book.Book.StatsCopy()
 	statsSlot.Fill(stats)
 	if s.MaxSizeHisto == 0 {
 		s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
