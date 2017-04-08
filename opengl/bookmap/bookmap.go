@@ -40,7 +40,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 		//PriceScrollPosition: 0,
 		PriceSteps: 0.50,
 		//PriceSteps: 0.02,
-		RowHeight: 20,
+		RowHeight: 18,
 		//MaxSizeHisto: 80.0,
 		//MaxSizeHisto: 1600.0,
 		ColumnWidth:  4,
@@ -86,8 +86,9 @@ func (s *Bookmap) InitPriceScrollPosition() {
 
 	rowsCount := s.Texture.Height / s.RowHeight
 
-	if len(s.book.Ask) > 0 {
-		s.PriceScrollPosition = round(s.book.Ask[0].Price, 0) + (float64(int(rowsCount/2)) * s.PriceSteps)
+	centerPrice := s.book.CenterPrice()
+	if centerPrice != 0.0 {
+		s.PriceScrollPosition = round(centerPrice, 0) + (float64(int(rowsCount/2)) * s.PriceSteps)
 	}
 }
 
@@ -136,7 +137,8 @@ func (s *Bookmap) Render() {
 	}
 
 	statsSlot := NewTimeSlot(s, now, now)
-	stats := s.Graph.Book.Book.StateAsStats()
+	//stats := s.Graph.Book.Book.StateAsStats()
+	stats := s.Graph.Book.Book.StatsCopy()
 	statsSlot.Fill(stats)
 	if s.MaxSizeHisto == 0 {
 		s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
@@ -314,33 +316,45 @@ func (s *Bookmap) Render() {
 	xx := float64(x + 2)
 	for n, row := range statsSlot.Rows {
 		if math.Mod(float64(n), 3) == 0 {
-			font.DrawString(data, int(xx)-100, int(row.Y)+4, fmt.Sprintf("%.2f", row.Heigh), red)
+			font.DrawString(data, int(xx)-80, int(row.Y)+3, fmt.Sprintf("%.2f", row.Heigh), fg1)
 		}
 
 		width := 80.0
-		draw2dkit.Rectangle(gc, xx, row.Y+2, xx+width, row.Y+s.RowHeight-2)
-		//gc.SetFillColor(fg1)
-		gc.SetFillColor(bg1)
-		gc.Fill()
+		//draw2dkit.Rectangle(gc, xx, row.Y+2, xx+width, row.Y+s.RowHeight-2)
+		//gc.SetFillColor(bg1)
+		//gc.Fill()
 
 		if row.Size > 0 {
-			if row.Type == 0 {
-				gc.SetFillColor(green)
-			} else {
+			if row.BidCount != 0 && row.AskCount != 0 {
+				width = 2 + (80 * (row.BidSize / (statsSlot.MaxSize + 10)))
+				y1 := row.Y + 1
+				y2 := row.Y + s.RowHeight/2
+				draw2dkit.Rectangle(gc, xx, y1, xx+width, y2)
 				gc.SetFillColor(red)
+				gc.Fill()
+
+				width = 2 + (80 * (row.AskSize / (statsSlot.MaxSize + 10)))
+				y1 = y2 + 1
+				y2 = row.Y + s.RowHeight - 1
+				draw2dkit.Rectangle(gc, xx, y1, xx+width, y2)
+				gc.SetFillColor(green)
+				gc.Fill()
+			} else {
+				if row.BidCount != 0 {
+					gc.SetFillColor(green)
+				} else {
+					gc.SetFillColor(red)
+				}
+
+				width = 2 + (80 * (row.Size / (statsSlot.MaxSize + 10)))
+				draw2dkit.Rectangle(gc, xx, row.Y+1, xx+width, row.Y+s.RowHeight-1)
+				gc.Fill()
 			}
-
-			maxSize := statsSlot.MaxSize
-			width = 80 * (row.Size / (maxSize + 10))
-			draw2dkit.Rectangle(gc, xx, row.Y+2, xx+width, row.Y+s.RowHeight-2)
-			gc.Fill()
-
-			font.DrawString(data, int(xx)+4, int(row.Y)+4, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
+			font.DrawString(data, int(xx)+4, int(row.Y)+3, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
 		}
 
-		//gc.MoveTo(float64(x), y+s.RowHeight)
-		//gc.LineTo(float64(x)+200, y+s.RowHeight)
-		gc.MoveTo(0, row.Y+s.RowHeight)
+		//gc.MoveTo(0, row.Y+s.RowHeight)
+		gc.MoveTo(xx, row.Y+s.RowHeight)
 		gc.LineTo(s.Texture.Width, row.Y+s.RowHeight)
 		gc.Stroke()
 	}

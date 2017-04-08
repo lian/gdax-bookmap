@@ -14,20 +14,22 @@ type TimeSlotRow struct {
 	Size       float64
 	Type       int
 	OrderCount int
+	AskSize    float64
+	BidSize    float64
+	BidCount   int
+	AskCount   int
 }
 
 type TimeSlot struct {
-	From time.Time
-	To   time.Time
-	//ColumnWidth  float64
+	From         time.Time
+	To           time.Time
 	Rows         []*TimeSlotRow
 	MaxSize      float64
 	BidPrice     float64
 	AskPrice     float64
 	BidTradeSize float64
 	AskTradeSize float64
-	//Stats        *orderbook.BookMapStats
-	Stats *orderbook.BookMapStatsCopy
+	Stats        *orderbook.BookMapStatsCopy
 }
 
 func NewNewTimeSlot(from time.Time, to time.Time) *TimeSlot {
@@ -102,8 +104,12 @@ func (s *TimeSlot) GenerateRows(count, priceOffset, steps float64) {
 
 func (s *TimeSlot) Refill() {
 	for _, row := range s.Rows {
-		row.Size = 0
+		row.BidSize = 0
+		row.BidCount = 0
+		row.AskSize = 0
+		row.AskCount = 0
 		row.OrderCount = 0
+		row.Size = 0
 	}
 	if s.Stats != nil {
 		s.Fill(s.Stats)
@@ -127,6 +133,8 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 
 		row.Type = 0
 		row.Size += state.Size
+		row.BidSize += state.Size
+		row.BidCount += state.OrderCount
 		row.OrderCount += state.OrderCount
 
 		if s.BidPrice == 0 {
@@ -155,6 +163,8 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 
 		row.Type = 1
 		row.Size += state.Size
+		row.AskSize += state.Size
+		row.AskCount += state.OrderCount
 		row.OrderCount += state.OrderCount
 
 		if s.AskPrice == 0 {

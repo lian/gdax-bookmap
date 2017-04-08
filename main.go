@@ -105,6 +105,8 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition = 0.0
 		bm.InitPriceScrollPosition()
+		bm.Graph.ClearSlotRows()
+	} else if key == glfw.KeyDown && action == glfw.Press {
 	} else if key == glfw.KeyR && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = 0.0

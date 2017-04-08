@@ -118,9 +118,26 @@ func (b *Book) StatsCopy() *BookMapStatsCopy {
 
 	return s
 }
-func (b *Book) Spread() float64 {
+
+func (b *Book) CenterPrice() float64 {
+	if b.Empty() {
+		return 0.0
+	}
+	spread := b.Spread()
+	return b.Ask[0].Price + (spread / 2)
+}
+
+func (b *Book) Empty() bool {
+	return len(b.Ask) == 0 && len(b.Ask) == 0
+}
+
+func (b *Book) Sort() {
 	sort.Sort(b.Bid)
 	sort.Sort(b.Ask)
+}
+
+func (b *Book) Spread() float64 {
+	b.Sort()
 	var spread float64
 	if len(b.Bid) > 0 && len(b.Ask) > 0 {
 		spread = b.Ask[0].Price - b.Bid[len(b.Bid)-1].Price
