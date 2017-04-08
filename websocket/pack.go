@@ -92,6 +92,12 @@ func PackPacket(data map[string]interface{}) []byte {
 		binary.Write(buf, binary.LittleEndian, ChangePacket)
 		binary.Write(buf, binary.LittleEndian, uint64(data["sequence"].(float64)))
 
+		if data["side"].(string) == "buy" {
+			binary.Write(buf, binary.LittleEndian, BuySide)
+		} else {
+			binary.Write(buf, binary.LittleEndian, SellSide)
+		}
+
 		id, _ := uuid.FromString(data["order_id"].(string))
 		binary.Write(buf, binary.LittleEndian, id)
 
@@ -250,6 +256,12 @@ func UnpackPacket(data []byte) map[string]interface{} {
 	case ChangePacket:
 		var sequence uint64
 		binary.Read(buf, binary.LittleEndian, &sequence)
+		var side uint8
+		binary.Read(buf, binary.LittleEndian, &side)
+		sideString := "sell"
+		if side == BuySide {
+			sideString = "buy"
+		}
 		var id uuid.UUID
 		binary.Read(buf, binary.LittleEndian, &id)
 		var price float64
@@ -264,6 +276,7 @@ func UnpackPacket(data []byte) map[string]interface{} {
 		return map[string]interface{}{
 			"type":           "change",
 			"sequence":       sequence,
+			"side":           sideString,
 			"maker_order_id": id.String(),
 			"price":          price,
 			"size":           size,
