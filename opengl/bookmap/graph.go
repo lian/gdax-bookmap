@@ -168,7 +168,13 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 			seq := websocket.UnpackSequence(buf)
 			if seq != nextSequence {
 				fmt.Println("graph out of sequence", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
-				more = false
+				pkt := websocket.UnpackPacket(buf)
+				if pkt["type"].(string) == "sync" {
+					g.Book.Process(pkt)
+					g.LastProcessedKey = []byte(string(key))
+				}
+				more = true
+				jumpNext = true
 				break
 			}
 
