@@ -25,20 +25,21 @@ func (b *DbBook) Process(data map[string]interface{}) bool {
 		sequence = data["sequence"].(uint64)
 	}
 
-	if sequence <= b.Book.Sequence {
-		fmt.Println("Process: Ignore old messages", sequence, b.Book.Sequence, data["type"])
-		return true
-	}
+	if data["type"].(string) != "sync" {
+		if sequence <= b.Book.Sequence {
+			fmt.Println("Process: Ignore old messages", sequence, b.Book.Sequence, data["type"])
+			return true
+		}
 
-	if (b.Book.Sequence != 0) && (sequence != (b.Book.Sequence + 1)) {
-		fmt.Println("Process: Message lost, needs to resync", sequence, b.Book.Sequence)
-		return false
+		if (b.Book.Sequence != 0) && (sequence != (b.Book.Sequence + 1)) {
+			fmt.Println("Process: Message lost, needs to resync", sequence, b.Book.Sequence)
+			return false
+		}
 	}
 
 	b.Book.Sequence = sequence
 
 	b.HandleMessage(data)
-
 	return true
 }
 
