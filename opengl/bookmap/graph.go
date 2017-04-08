@@ -191,7 +191,11 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 			g.CurrentTime = websocket.UnpackTimeKey(g.CurrentKey)
 			slot.Stats = g.Book.Book.StatsCopy()
 		} else {
-			if !jumpNext {
+			if jumpNext {
+				if new {
+					slot.Stats = g.Book.Book.StatsCopy()
+				}
+			} else {
 				more = false
 			}
 		}
