@@ -20,16 +20,13 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 	}
 
 	if seq, ok := full["sequence"]; ok {
-		full["type"] = "sync"
-		//full["time"] = time.Now().Add(-1 * time.Second).Format(TimeFormat)
-		//full["time"] = time.Now().Format(TimeFormat)
-		client.WriteDB(book, full)
-
 		book.Clear()
 		book.Sequence = uint64(seq.(float64))
 
+		packBids := [][]interface{}{}
+		packAsks := [][]interface{}{}
+
 		if bids, ok := full["bids"].([]interface{}); ok {
-			//fmt.Println("bids len", len(bids))
 			for i := len(bids) - 1; i >= 0; i-- {
 				data := bids[i].([]interface{})
 				price, _ := strconv.ParseFloat(data[0].(string), 64)
@@ -40,10 +37,10 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 					"price": price,
 					"size":  size,
 				})
+				packBids = append(packBids, []interface{}{price, size, data[2].(string)})
 			}
 		}
 		if asks, ok := full["asks"].([]interface{}); ok {
-			//fmt.Println("asks len", len(asks))
 			for i := len(asks) - 1; i >= 0; i-- {
 				data := asks[i].([]interface{})
 				price, _ := strconv.ParseFloat(data[0].(string), 64)
@@ -54,8 +51,16 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 					"price": price,
 					"size":  size,
 				})
+				packAsks = append(packAsks, []interface{}{price, size, data[2].(string)})
 			}
 		}
+
+		client.WriteDB(book, map[string]interface{}{
+			"type":     "sync",
+			"sequence": full["sequence"],
+			"bids":     packBids,
+			"asks":     packAsks,
+		})
 	}
 
 	return nil

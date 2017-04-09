@@ -19,6 +19,7 @@ type Orderbook struct {
 	ID      string
 	Texture *texture.Texture
 	gdax    *websocket.Client
+	Image   *image.RGBA
 }
 
 func New(program *shader.Program, gdax *websocket.Client, id string, height float64, x float64) *Orderbook {
@@ -37,11 +38,12 @@ func New(program *shader.Program, gdax *websocket.Client, id string, height floa
 		},
 	}
 	s.Texture.Setup(program)
+	s.Image = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
 	return s
 }
 
 func (s *Orderbook) Render() {
-	data := image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
+	data := s.Image
 	gc := draw2dimg.NewGraphicContext(data)
 
 	bg1 := color.RGBA{0x15, 0x23, 0x2c, 0xff}
@@ -62,7 +64,10 @@ func (s *Orderbook) Render() {
 	lineHeight := font.Height + 2
 
 	limit := ((int(s.Texture.Height) / 2) / lineHeight) - 2
-	bids, asks := book.StateCombined()
+	//bids, asks := book.StateCombined()
+	stats := book.StateAsStats()
+	bids := stats.Bid
+	asks := stats.Ask
 
 	var latestPrice float64
 	i := len(book.Trades)

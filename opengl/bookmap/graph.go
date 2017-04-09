@@ -13,14 +13,13 @@ import (
 )
 
 type Graph struct {
-	CurrentKey  []byte
-	CurrentTime time.Time
-	Book        *orderbook.DbBook
-	Timeslots   []*TimeSlot
-	Width       int
-	SlotWidth   int
-	SlotCount   int
-	//SlotMaxCount int
+	CurrentKey       []byte
+	CurrentTime      time.Time
+	Book             *orderbook.DbBook
+	Timeslots        []*TimeSlot
+	Width            int
+	SlotWidth        int
+	SlotCount        int
 	SlotSteps        int
 	Start            time.Time
 	End              time.Time
@@ -91,7 +90,9 @@ func (g *Graph) SetEnd(end time.Time) bool {
 		if new {
 			//fmt.Println("added new slot")
 			if len(g.Timeslots) >= g.SlotCount {
-				g.Timeslots = append(g.Timeslots[1:], newSlot)
+				// remove and free first item
+				copy(g.Timeslots[0:], g.Timeslots[1:])
+				g.Timeslots[len(g.Timeslots)-1] = newSlot
 			} else {
 				g.Timeslots = append(g.Timeslots, newSlot)
 			}
@@ -105,7 +106,7 @@ func (g *Graph) SetEnd(end time.Time) bool {
 		}
 	}
 
-	fmt.Println("End SetEnd", count, len(g.Timeslots), g.SlotCount, string(g.CurrentKey), g.Start, end)
+	//fmt.Println("End SetEnd", count, len(g.Timeslots), g.SlotCount, string(g.CurrentKey), g.Start, end)
 	return true
 }
 
@@ -139,7 +140,6 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 	if len(g.Timeslots) == 0 {
 		g.Book.Book.ResetStats()
 		slot = NewNewTimeSlot(curSlotStart, curSlotEnd)
-		slot.Stats = g.Book.Book.StatsCopy()
 	} else {
 		slot = g.Timeslots[len(g.Timeslots)-1]
 		if slot.From == curSlotStart {
@@ -147,7 +147,6 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 		} else {
 			g.Book.Book.ResetStats()
 			slot = NewNewTimeSlot(curSlotStart, curSlotEnd)
-			slot.Stats = g.Book.Book.StatsCopy()
 		}
 	}
 
@@ -160,7 +159,6 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 		c.Seek(g.LastProcessedKey)
 		for {
 			key, buf := c.Next()
-
 			if key == nil {
 				break
 			}
@@ -171,8 +169,8 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				pkt := websocket.UnpackPacket(buf)
 				if pkt["type"].(string) == "sync" {
 					g.Book.Process(pkt)
-					g.LastProcessedKey = []byte(string(key))
 				}
+				g.LastProcessedKey = []byte(string(key))
 				more = true
 				jumpNext = true
 				break
@@ -208,6 +206,10 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 
 		return nil
 	})
+
+	if slot.Stats == nil {
+		slot.Stats = g.Book.Book.StatsCopy()
+	}
 
 	//fmt.Println("End AddTimeslots")
 	return slot, new, more, nil

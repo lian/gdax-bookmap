@@ -3,8 +3,6 @@ package websocket
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
-	"log"
 	"strconv"
 	"time"
 
@@ -116,31 +114,25 @@ func PackPacket(data map[string]interface{}) []byte {
 		binary.Write(buf, binary.LittleEndian, SyncPacket)
 		binary.Write(buf, binary.LittleEndian, uint64(data["sequence"].(float64)))
 
-		if bids, ok := data["bids"].([]interface{}); ok {
+		if bids, ok := data["bids"].([][]interface{}); ok {
 			binary.Write(buf, binary.LittleEndian, uint64(len(bids)))
 			for i := len(bids) - 1; i >= 0; i-- {
-				d := bids[i].([]interface{})
+				d := bids[i]
 				id, _ := uuid.FromString(d[2].(string))
-				price, _ := strconv.ParseFloat(d[0].(string), 64)
-				size, _ := strconv.ParseFloat(d[1].(string), 64)
-
-				binary.Write(buf, binary.LittleEndian, id)
-				binary.Write(buf, binary.LittleEndian, price)
-				binary.Write(buf, binary.LittleEndian, size)
+				binary.Write(buf, binary.LittleEndian, id)             // id
+				binary.Write(buf, binary.LittleEndian, d[0].(float64)) // price
+				binary.Write(buf, binary.LittleEndian, d[1].(float64)) // size
 			}
 		}
 
-		if asks, ok := data["asks"].([]interface{}); ok {
+		if asks, ok := data["asks"].([][]interface{}); ok {
 			binary.Write(buf, binary.LittleEndian, uint64(len(asks)))
 			for i := len(asks) - 1; i >= 0; i-- {
-				d := asks[i].([]interface{})
+				d := asks[i]
 				id, _ := uuid.FromString(d[2].(string))
-				price, _ := strconv.ParseFloat(d[0].(string), 64)
-				size, _ := strconv.ParseFloat(d[1].(string), 64)
-
-				binary.Write(buf, binary.LittleEndian, id)
-				binary.Write(buf, binary.LittleEndian, price)
-				binary.Write(buf, binary.LittleEndian, size)
+				binary.Write(buf, binary.LittleEndian, id)             // id
+				binary.Write(buf, binary.LittleEndian, d[0].(float64)) // price
+				binary.Write(buf, binary.LittleEndian, d[1].(float64)) // size
 			}
 		}
 	}
@@ -283,18 +275,12 @@ func UnpackPacket(data []byte) map[string]interface{} {
 			"time":           t.Format(TimeFormat),
 		}
 	case SyncPacket:
-		data := map[string]interface{}{
-			"type": "sync",
-		}
 		var sequence uint64
 		binary.Read(buf, binary.LittleEndian, &sequence)
-		data["sequence"] = sequence
-
-		bids := [][]interface{}{}
-		asks := [][]interface{}{}
 
 		var bidsCount uint64
 		binary.Read(buf, binary.LittleEndian, &bidsCount)
+		bids := make([][]interface{}, 0, bidsCount)
 		for i := uint64(0); i < bidsCount; i += 1 {
 			var id uuid.UUID
 			binary.Read(buf, binary.LittleEndian, &id)
@@ -302,11 +288,12 @@ func UnpackPacket(data []byte) map[string]interface{} {
 			binary.Read(buf, binary.LittleEndian, &price)
 			var size float64
 			binary.Read(buf, binary.LittleEndian, &size)
-			bids = append(bids, []interface{}{strconv.FormatFloat(price, 'E', -1, 64), strconv.FormatFloat(size, 'E', -1, 64), id.String()})
+			bids = append(bids, []interface{}{price, size, id.String()})
 		}
 
 		var asksCount uint64
 		binary.Read(buf, binary.LittleEndian, &asksCount)
+		asks := make([][]interface{}, 0, asksCount)
 		for i := uint64(0); i < asksCount; i += 1 {
 			var id uuid.UUID
 			binary.Read(buf, binary.LittleEndian, &id)
@@ -314,18 +301,15 @@ func UnpackPacket(data []byte) map[string]interface{} {
 			binary.Read(buf, binary.LittleEndian, &price)
 			var size float64
 			binary.Read(buf, binary.LittleEndian, &size)
-			asks = append(asks, []interface{}{strconv.FormatFloat(price, 'E', -1, 64), strconv.FormatFloat(size, 'E', -1, 64), id.String()})
+			asks = append(asks, []interface{}{price, size, id.String()})
 		}
 
-		data["bids"] = bids
-		data["asks"] = asks
-
-		tmpData, _ := json.Marshal(data)
-		if err := json.Unmarshal(tmpData, &data); err != nil {
-			log.Fatal(err)
+		return map[string]interface{}{
+			"type":     "sync",
+			"sequence": sequence,
+			"bids":     bids,
+			"asks":     asks,
 		}
-
-		return data
 	}
 
 	return map[string]interface{}{}

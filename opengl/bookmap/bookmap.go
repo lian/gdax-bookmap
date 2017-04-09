@@ -31,6 +31,7 @@ type Bookmap struct {
 	ColumnWidth         float64
 	ViewportStep        int
 	Graph               *Graph
+	Image               *image.RGBA
 }
 
 func New(program *shader.Program, width, height float64, x float64, book *orderbook.Book, gdax *websocket.Client) *Bookmap {
@@ -53,6 +54,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 		},
 	}
 	s.Texture.Setup(program)
+	s.Image = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
 	return s
 }
 
@@ -93,7 +95,7 @@ func (s *Bookmap) InitPriceScrollPosition() {
 }
 
 func (s *Bookmap) Render() {
-	data := image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
+	data := s.Image
 	gc := draw2dimg.NewGraphicContext(data)
 
 	bg1 := color.RGBA{0x15, 0x23, 0x2c, 0xff}
@@ -326,14 +328,14 @@ func (s *Bookmap) Render() {
 
 		if row.Size > 0 {
 			if row.BidCount != 0 && row.AskCount != 0 {
-				width = 2 + (80 * (row.BidSize / (statsSlot.MaxSize + 10)))
+				width = 2 + (80 * (row.AskSize / (statsSlot.MaxSize + 10)))
 				y1 := row.Y + 1
 				y2 := row.Y + s.RowHeight/2
 				draw2dkit.Rectangle(gc, xx, y1, xx+width, y2)
 				gc.SetFillColor(red)
 				gc.Fill()
 
-				width = 2 + (80 * (row.AskSize / (statsSlot.MaxSize + 10)))
+				width = 2 + (80 * (row.BidSize / (statsSlot.MaxSize + 10)))
 				y1 = y2 + 1
 				y2 = row.Y + s.RowHeight - 1
 				draw2dkit.Rectangle(gc, xx, y1, xx+width, y2)

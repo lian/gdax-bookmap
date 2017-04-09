@@ -43,7 +43,7 @@ func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 		TradesUpdated: tradesUpdated,
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
-		DBBatch:       []BatchChunk{},
+		DBBatch:       []*BatchChunk{},
 		DBBatchTime:   time.Now(),
 	}
 
@@ -81,7 +81,7 @@ type Client struct {
 	DB            *bolt.DB
 	DBCount       int
 	DBLock        sync.Mutex
-	DBBatch       []BatchChunk
+	DBBatch       []*BatchChunk
 	DBBatchTime   time.Time
 	dbEnabled     bool
 }
@@ -89,12 +89,14 @@ type Client struct {
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.Books[name] = orderbook.New(name)
+	c.Books[name].AlwaysSort = true
 	if c.TradesUpdated != nil {
 		c.Books[name].TradesUpdated = c.TradesUpdated
 	}
 }
 
 func (c *Client) Connect() {
+	fmt.Println("connect to websocket")
 	s, _, err := websocket.DefaultDialer.Dial("wss://ws-feed.gdax.com", nil)
 	c.Socket = s
 
@@ -135,6 +137,9 @@ func PackUnixNanoKey(nano int64) []byte {
 }
 
 func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
+	c.DBCount += 1
+	now := time.Now()
+
 	var t time.Time
 	if _, ok := data["time"].(string); ok {
 		t, _ = time.Parse(TimeFormat, data["time"].(string))
@@ -151,13 +156,11 @@ func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
 		}
 	}
 
-	c.DBBatch = append(c.DBBatch, BatchChunk{Time: t, Data: PackPacket(data)})
-	c.DBCount += 1
+	c.DBBatch = append(c.DBBatch, &BatchChunk{Time: t, Data: PackPacket(data)})
 
-	now := time.Now()
 	if now.Sub(c.DBBatchTime).Seconds() > 0.5 {
 		c.DBBatchTime = now
-		c.DB.Batch(func(tx *bolt.Tx) error {
+		c.DB.Update(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte(book.ID))
 			b.FillPercent = 0.9
 			var err error
@@ -181,7 +184,7 @@ func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
 			}
 			return err
 		})
-		c.DBBatch = []BatchChunk{}
+		c.DBBatch = []*BatchChunk{}
 	}
 }
 
@@ -255,7 +258,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 	}
 
 	if c.dbEnabled {
-		if math.Mod(float64(c.DBCount), 5000) != 0 {
+		if math.Mod(float64(c.DBCount), 10000) != 0 {
 			if writeDB {
 				c.WriteDB(book, data)
 			} else {
@@ -267,37 +270,28 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 			}
 		} else {
 			fmt.Println("==> STORE NEW SYNC")
-			// store new sync
-			data := map[string]interface{}{
-				"type":     "sync",
-				"sequence": data["sequence"],
-				"time":     data["time"],
-			}
 
 			bids := [][]interface{}{}
+			for _, level := range book.Bid {
+				for _, order := range level.Orders {
+					bids = append(bids, []interface{}{order.Price, order.Size, order.ID})
+				}
+			}
+
 			asks := [][]interface{}{}
-
-			for _, bidlevel := range book.Bid {
-				for _, order := range bidlevel.Orders {
-					bids = append(bids, []interface{}{strconv.FormatFloat(order.Price, 'E', -1, 64), strconv.FormatFloat(order.Size, 'E', -1, 64), order.ID})
+			for _, level := range book.Ask {
+				for _, order := range level.Orders {
+					asks = append(asks, []interface{}{order.Price, order.Size, order.ID})
 				}
 			}
 
-			for _, bidlevel := range book.Ask {
-				for _, order := range bidlevel.Orders {
-					asks = append(asks, []interface{}{strconv.FormatFloat(order.Price, 'E', -1, 64), strconv.FormatFloat(order.Size, 'E', -1, 64), order.ID})
-				}
-			}
-
-			data["bids"] = bids
-			data["asks"] = asks
-
-			syncData, _ := json.Marshal(data)
-			if err := json.Unmarshal(syncData, &data); err != nil {
-				log.Fatal(err)
-			}
-
-			c.WriteDB(book, data)
+			c.WriteDB(book, map[string]interface{}{
+				"type":     "sync_new",
+				"sequence": data["sequence"],
+				"time":     data["time"],
+				"bids":     bids,
+				"asks":     asks,
+			})
 		}
 	}
 }
@@ -360,11 +354,5 @@ func (c *Client) run() {
 		book.Sequence = header.Sequence
 
 		c.HandleMessage(book, header, message)
-
-		if book.Spread() < 0 {
-			// resync, something went wrong
-			fmt.Println("SYNC ERROR", book.Sequence)
-			SyncBook(book, c)
-		}
 	}
 }

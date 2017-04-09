@@ -42,14 +42,12 @@ func NewNewTimeSlot(from time.Time, to time.Time) *TimeSlot {
 }
 
 func NewTimeSlot(bookmap *Bookmap, from time.Time, to time.Time) *TimeSlot {
+	rows := (bookmap.Texture.Height / bookmap.RowHeight)
 	v := &TimeSlot{
 		From: from,
 		To:   to,
-		//ColumnWidth: bookmap.ColumnWidth,
-		Rows: []*TimeSlotRow{},
+		Rows: make([]*TimeSlotRow, 0, int(rows)),
 	}
-
-	rows := (bookmap.Texture.Height / bookmap.RowHeight)
 
 	for i := 0.0; i < rows; i++ {
 		y := i * bookmap.RowHeight
@@ -86,19 +84,13 @@ func (s *TimeSlot) FindRow(price float64) *TimeSlotRow {
 }
 
 func (s *TimeSlot) GenerateRows(count, priceOffset, steps float64) {
-	s.Rows = []*TimeSlotRow{}
+	s.Rows = make([]*TimeSlotRow, 0, int(count))
 
 	for i := 0.0; i < count; i++ {
-		//y := i * bookmap.RowHeight
-
 		heigh := priceOffset - (i * steps)
 		low := heigh - steps
 
-		s.Rows = append(s.Rows, &TimeSlotRow{
-			//Y:     y,
-			Low:   low,
-			Heigh: heigh,
-		})
+		s.Rows = append(s.Rows, &TimeSlotRow{Low: low, Heigh: heigh})
 	}
 }
 

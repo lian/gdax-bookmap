@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	//_ "net/http/pprof"
+
 	"github.com/lian/gdax-bookmap/websocket"
 )
 
+/*
 func PrintBooks(gdax *websocket.Client) {
 	// clear terminal
 	fmt.Print("\033[H\033[2J")
@@ -41,8 +44,14 @@ func PrintBooks(gdax *websocket.Client) {
 		fmt.Println("= bids =================================================")
 	}
 }
+*/
 
 func main() {
+	/*
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	*/
 
 	//bookUpdated := make(chan string, 1024)
 
@@ -57,9 +66,10 @@ func main() {
 
 	now := time.Now()
 	t := time.NewTicker(5 * time.Second)
+	book := gdax.Books["BTC-USD"]
 
 	for c := range t.C {
-		fmt.Println(c.Sub(now), gdax.DBCount)
+		fmt.Println(c.Sub(now), gdax.DBCount, len(book.Bid)+len(book.Ask))
 	}
 
 	/*

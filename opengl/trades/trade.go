@@ -20,6 +20,7 @@ type Trades struct {
 	ID      string
 	Texture *texture.Texture
 	gdax    *websocket.Client
+	Image   *image.RGBA
 }
 
 func New(program *shader.Program, gdax *websocket.Client, id string, height float64, x float64) *Trades {
@@ -38,12 +39,13 @@ func New(program *shader.Program, gdax *websocket.Client, id string, height floa
 		},
 	}
 	s.Texture.Setup(program)
+	s.Image = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
 	s.Render()
 	return s
 }
 
 func (s *Trades) Render() {
-	data := image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
+	data := s.Image
 	gc := draw2dimg.NewGraphicContext(data)
 
 	bg1 := color.RGBA{0x15, 0x23, 0x2c, 0xff}

@@ -1,14 +1,12 @@
 package orderbook
 
-import (
-	"fmt"
-	"strconv"
-)
+import "fmt"
 
 func NewDbBook(id string) *DbBook {
 	b := &DbBook{
 		Book: New(id),
 	}
+	b.Book.AlwaysSort = false
 	return b
 }
 
@@ -60,39 +58,33 @@ func (b *DbBook) HandleMessage(data map[string]interface{}) {
 	case "sync":
 		if seq, ok := data["sequence"]; ok {
 			b.Book.Clear()
-			b.Book.Sequence = uint64(seq.(float64))
+			b.Book.Sequence = seq.(uint64)
 			b.Book.SkipStatsUpdate = true
-			//b.Book.Sequence = uint64(seq.(float64)) + 1 // TODO: fix
 
-			if bids, ok := data["bids"].([]interface{}); ok {
+			if bids, ok := data["bids"].([][]interface{}); ok {
 				for i := len(bids) - 1; i >= 0; i-- {
-					data := bids[i].([]interface{})
-					price, _ := strconv.ParseFloat(data[0].(string), 64)
-					size, _ := strconv.ParseFloat(data[1].(string), 64)
+					data := bids[i]
 					b.Book.Add(map[string]interface{}{
-						"id":    data[2].(string),
 						"side":  "buy",
-						"price": price,
-						"size":  size,
+						"price": data[0].(float64),
+						"size":  data[1].(float64),
+						"id":    data[2].(string),
 					})
 				}
 			}
 
-			if asks, ok := data["asks"].([]interface{}); ok {
+			if asks, ok := data["asks"].([][]interface{}); ok {
 				for i := len(asks) - 1; i >= 0; i-- {
-					data := asks[i].([]interface{})
-					price, _ := strconv.ParseFloat(data[0].(string), 64)
-					size, _ := strconv.ParseFloat(data[1].(string), 64)
+					data := asks[i]
 					b.Book.Add(map[string]interface{}{
-						"id":    data[2].(string),
 						"side":  "sell",
-						"price": price,
-						"size":  size,
+						"price": data[0].(float64),
+						"size":  data[1].(float64),
+						"id":    data[2].(string),
 					})
 				}
 			}
 			b.Book.SkipStatsUpdate = false
-			//b.Book.ResetStats() // improve
 		}
 		break
 	}

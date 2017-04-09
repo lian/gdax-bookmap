@@ -256,8 +256,6 @@ func main() {
 	tick := time.NewTicker(time.Millisecond * 500)
 	second := time.NewTicker(time.Second * 1)
 
-	//lastWidth := float64(WindowWidth)
-
 	for !window.ShouldClose() {
 		select {
 		case <-pollEventsTimer.C:
@@ -265,12 +263,10 @@ func main() {
 			continue
 		case id := <-bookUpdated:
 			updatedOrderbook[id] = true
-			//bookmaps[id].BookUpdated(gdax.Books[id])
 
 			s := len(bookUpdated)
 			for i := s; i < s; i += 1 {
 				id = <-bookUpdated
-				//bookmaps[id].BookUpdated(gdax.Books[id])
 				updatedOrderbook[id] = true
 			}
 			continue
@@ -290,14 +286,6 @@ func main() {
 			}
 		case <-second.C:
 			bookmap := bookmaps[ActiveProduct]
-			/*
-				if lastWidth != float64(WindowWidth) {
-					lastWidth = float64(WindowWidth)
-					bookmap.UpdateTexture(lastWidth-(orderbooks[ActiveProduct].Texture.Width+padding)-254-(padding*3), float64(WindowHeight), bookmap.Texture.X, program)
-					trade := trades[ActiveProduct]
-					trade.Texture.UpdatePosition(lastWidth-254-padding, trade.Texture.Y)
-				}
-			*/
 			bookmap.Render()
 
 		case <-redrawChan:
