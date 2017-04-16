@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"image/color"
 	"math"
 	"time"
 
@@ -25,11 +26,14 @@ type Graph struct {
 	End              time.Time
 	DB               *bolt.DB
 	ProductID        string
-	gdax             *websocket.Client
 	LastProcessedKey []byte
+	Red              color.RGBA
+	Green            color.RGBA
+	Bg1              color.RGBA
+	Fg1              color.RGBA
 }
 
-func NewGraph(db *bolt.DB, productID string, width, slotWidth, slotSteps int, gdax *websocket.Client) *Graph {
+func NewGraph(db *bolt.DB, productID string, width, slotWidth, slotSteps int) *Graph {
 	g := &Graph{
 		ProductID: productID,
 		DB:        db,
@@ -37,7 +41,10 @@ func NewGraph(db *bolt.DB, productID string, width, slotWidth, slotSteps int, gd
 		SlotWidth: slotWidth,
 		SlotCount: width / slotWidth,
 		SlotSteps: slotSteps,
-		gdax:      gdax,
+		Red:       color.RGBA{0xff, 0x69, 0x39, 0xff},
+		Green:     color.RGBA{0x84, 0xf7, 0x66, 0xff},
+		Bg1:       color.RGBA{0x15, 0x23, 0x2c, 0xff},
+		Fg1:       color.RGBA{0xdd, 0xdf, 0xe1, 0xff},
 	}
 	return g
 }
@@ -153,7 +160,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 	jumpNext := false
 	nextSequence := g.Book.Book.Sequence + 1
 
-	g.gdax.DB.View(func(tx *bolt.Tx) error {
+	g.DB.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket([]byte(g.ProductID)).Cursor()
 
 		c.Seek(g.LastProcessedKey)

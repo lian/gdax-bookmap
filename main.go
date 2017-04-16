@@ -95,12 +95,14 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		if bm.ColumnWidth < 0 {
 			bm.ColumnWidth = 1
 		}
+		bm.Graph.SlotWidth = int(bm.ColumnWidth)
 	} else if key == glfw.KeyRight && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ColumnWidth += 2
 		if bm.ColumnWidth > 30 {
 			bm.ColumnWidth = 30
 		}
+		bm.Graph.SlotWidth = int(bm.ColumnWidth)
 	} else if key == glfw.KeyC && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition = 0.0

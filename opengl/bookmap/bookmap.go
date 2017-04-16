@@ -18,8 +18,6 @@ import (
 	"github.com/llgcode/draw2d/draw2dkit"
 )
 
-const TimeFormat = "2006-01-02T15:04:05.999999Z07:00"
-
 type Bookmap struct {
 	Texture             *texture.Texture
 	PriceScrollPosition float64
@@ -36,14 +34,10 @@ type Bookmap struct {
 
 func New(program *shader.Program, width, height float64, x float64, book *orderbook.Book, gdax *websocket.Client) *Bookmap {
 	s := &Bookmap{
-		book: book,
-		gdax: gdax,
-		//PriceScrollPosition: 0,
-		PriceSteps: 0.50,
-		//PriceSteps: 0.02,
-		RowHeight: 18,
-		//MaxSizeHisto: 80.0,
-		//MaxSizeHisto: 1600.0,
+		book:         book,
+		gdax:         gdax,
+		PriceSteps:   0.50,
+		RowHeight:    18,
 		ColumnWidth:  4,
 		ViewportStep: 1,
 		Texture: &texture.Texture{
@@ -66,21 +60,6 @@ func round(k float64, precision int) float64 {
 	return f
 }
 
-func colourGradientor(p float64, begin, end color.RGBA) color.RGBA {
-	if p > 1.0 {
-		p = 1.0
-	}
-	w := p*2 - 1
-	w1 := (w + 1) / 2.0
-	w2 := 1 - w1
-
-	r := uint8(float64(begin.R)*w1 + float64(end.R)*w2)
-	g := uint8(float64(begin.G)*w1 + float64(end.G)*w2)
-	b := uint8(float64(begin.B)*w1 + float64(end.B)*w2)
-
-	return color.RGBA{R: r, G: g, B: b, A: 0xff}
-}
-
 func (s *Bookmap) InitPriceScrollPosition() {
 	if s.PriceScrollPosition != 0.0 {
 		return
@@ -94,16 +73,23 @@ func (s *Bookmap) InitPriceScrollPosition() {
 	}
 }
 
+func (s *Bookmap) WriteTexture() {
+	s.Texture.Write(&s.Image.Pix)
+}
+
+func (s *Bookmap) DrawString(x, y int, text string, color color.RGBA) {
+	font.DrawString(s.Image, x, y, text, color)
+}
+
 func (s *Bookmap) Render() {
-	data := s.Image
-	gc := draw2dimg.NewGraphicContext(data)
+	gc := draw2dimg.NewGraphicContext(s.Image)
 
 	bg1 := color.RGBA{0x15, 0x23, 0x2c, 0xff}
 	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
 	green := color.RGBA{0x4d, 0xa5, 0x3c, 0xff}
-	green2 := color.RGBA{0x84, 0xf7, 0x66, 0xff}
 	red := color.RGBA{0xff, 0x69, 0x39, 0xff}
 
+	// fill texture with default background
 	gc.SetLineWidth(1.0)
 	gc.SetStrokeColor(fg1)
 	gc.SetFillColor(bg1)
@@ -113,7 +99,7 @@ func (s *Bookmap) Render() {
 	now := time.Now()
 
 	if s.Graph == nil {
-		graph := NewGraph(s.gdax.DB, s.book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep), s.gdax)
+		graph := NewGraph(s.gdax.DB, s.book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
 
 		tnow := now.Unix() - 1
 		tnow += int64(graph.SlotSteps) - int64(math.Mod(float64(tnow), float64(graph.SlotSteps)))
@@ -123,7 +109,7 @@ func (s *Bookmap) Render() {
 			s.Graph = graph
 		}
 
-		s.Texture.Write(&data.Pix)
+		s.WriteTexture()
 		return
 	}
 
@@ -134,7 +120,7 @@ func (s *Bookmap) Render() {
 	tnow += int64(s.Graph.SlotSteps) - int64(math.Mod(float64(tnow), float64(s.Graph.SlotSteps)))
 	end := time.Unix(tnow-int64(0*s.Graph.SlotSteps), 0)
 	if !s.Graph.SetEnd(end) {
-		s.Texture.Write(&data.Pix)
+		s.WriteTexture()
 		return
 	}
 
@@ -146,168 +132,11 @@ func (s *Bookmap) Render() {
 		s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
 	}
 
-	cx := x
+	s.Graph.DrawTimeslots(gc, x, (s.Texture.Height / s.RowHeight), s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
+	s.Graph.DrawBidAskLines(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps)
+	s.Graph.DrawTradeDots(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
 
-	maxIdx := len(s.Graph.Timeslots)
-	for idx := maxIdx - 1; idx >= 0; idx-- {
-		slot := s.Graph.Timeslots[idx]
-		//fmt.Println("slot", slot.From, slot.To, slot.Stats == nil)
-
-		cx -= s.ColumnWidth
-		if cx < 0 {
-			break
-		}
-
-		if len(slot.Rows) == 0 {
-			count := (s.Texture.Height / s.RowHeight)
-			slot.GenerateRows(count, s.PriceScrollPosition, s.PriceSteps)
-			slot.Refill()
-		} else {
-			if idx >= (maxIdx - 3) { // only need to refill last/current two
-				slot.Refill()
-			}
-		}
-
-		x1 := cx
-		x2 := cx + s.ColumnWidth
-
-		for i, row := range slot.Rows {
-			strength := (row.Size / s.MaxSizeHisto)
-			if strength > 0 {
-				y := float64(i) * s.RowHeight
-				draw2dkit.Rectangle(gc, x1, y, x2, y+s.RowHeight)
-				gc.SetFillColor(colourGradientor(strength, fg1, bg1))
-				gc.SetStrokeColor(color.Black)
-				//gc.FillStroke()
-				gc.Fill()
-			}
-		}
-	}
-
-	gc.SetLineWidth(2.0)
-
-	// ask line
-	cx = x
-	y := 0.0
-	start := true
-	maxIdx = len(s.Graph.Timeslots)
-	for idx := maxIdx - 1; idx >= 0; idx-- {
-		slot := s.Graph.Timeslots[idx]
-
-		cx -= s.ColumnWidth
-		if cx < 0 {
-			break
-		}
-		if slot.isEmpty() || slot.AskPrice == 0.0 {
-			continue
-		}
-
-		y = ((s.PriceScrollPosition - slot.AskPrice) / s.PriceSteps) * s.RowHeight
-
-		if start {
-			start = false
-			gc.MoveTo(cx+s.ColumnWidth, y)
-		} else {
-			gc.LineTo(cx+s.ColumnWidth, y)
-		}
-		gc.LineTo(cx, y)
-	}
-	gc.SetStrokeColor(red)
-	gc.Stroke()
-
-	// bid line
-	cx = x
-	y = 0.0
-	start = true
-	maxIdx = len(s.Graph.Timeslots)
-	for idx := maxIdx - 1; idx >= 0; idx-- {
-		slot := s.Graph.Timeslots[idx]
-		cx -= s.ColumnWidth
-		if cx < 0 {
-			break
-		}
-		if slot.isEmpty() || slot.BidPrice == 0.0 {
-			continue
-		}
-
-		y = ((s.PriceScrollPosition - slot.BidPrice) / s.PriceSteps) * s.RowHeight
-
-		if start {
-			start = false
-			gc.MoveTo(cx+s.ColumnWidth, y)
-		} else {
-			gc.LineTo(cx+s.ColumnWidth, y)
-		}
-		gc.LineTo(cx, y)
-	}
-	gc.SetStrokeColor(green2)
-	gc.Stroke()
-
-	dotGreen := green2 // color.RGBA{0x84, 0xf7, 0x66, 0xaa}
-	dotRed := red      // color.RGBA{0xff, 0x69, 0x39, 0xaa}
-
-	// trade ask dots
-	cx = x
-	y = 0.0
-	maxIdx = len(s.Graph.Timeslots)
-	for idx := maxIdx - 1; idx >= 0; idx-- {
-		slot := s.Graph.Timeslots[idx]
-		cx -= s.ColumnWidth
-		if cx < 0 {
-			break
-		}
-		if slot.isEmpty() || slot.AskTradeSize == 0 {
-			continue
-		}
-
-		y = ((s.PriceScrollPosition - slot.AskPrice) / s.PriceSteps) * s.RowHeight
-
-		startAngle := 0 * (math.Pi / 180.0)
-		angle := 360 * (math.Pi / 180.0)
-
-		xx := (cx + (s.ColumnWidth / 2))
-		//size := 6.0
-		t := (slot.AskTradeSize / s.MaxSizeHisto)
-		if t > 1.0 {
-			t = 1.0
-		}
-		size := 4 + float64(t*10)
-		gc.ArcTo(xx, y, size, size, startAngle, angle)
-		gc.SetFillColor(dotGreen)
-		gc.Fill()
-	}
-
-	// trade bid dots
-	cx = x
-	y = 0.0
-	maxIdx = len(s.Graph.Timeslots)
-	for idx := maxIdx - 1; idx >= 0; idx-- {
-		slot := s.Graph.Timeslots[idx]
-		cx -= s.ColumnWidth
-		if cx < 0 {
-			break
-		}
-		if slot.isEmpty() || slot.BidTradeSize == 0 {
-			continue
-		}
-
-		y = ((s.PriceScrollPosition - slot.BidPrice) / s.PriceSteps) * s.RowHeight
-
-		startAngle := 0 * (math.Pi / 180.0)
-		angle := 360 * (math.Pi / 180.0)
-
-		xx := (cx + (s.ColumnWidth / 2))
-		//size := 6.0
-		t := (slot.BidTradeSize / s.MaxSizeHisto)
-		if t > 1.0 {
-			t = 1.0
-		}
-		size := 4 + float64(t*10)
-		gc.ArcTo(xx, y, size, size, startAngle, angle)
-		gc.SetFillColor(dotRed)
-		gc.Fill()
-	}
-
+	// draw current (statsSlot) volume slot
 	gc.SetLineWidth(1.0)
 	gc.SetStrokeColor(fg1)
 	gc.SetFillColor(fg1)
@@ -318,7 +147,7 @@ func (s *Bookmap) Render() {
 	xx := float64(x + 2)
 	for n, row := range statsSlot.Rows {
 		if math.Mod(float64(n), 3) == 0 {
-			font.DrawString(data, int(xx)-80, int(row.Y)+3, fmt.Sprintf("%.2f", row.Heigh), fg1)
+			s.DrawString(int(xx)-80, int(row.Y)+3, fmt.Sprintf("%.2f", row.Heigh), fg1)
 		}
 
 		width := 80.0
@@ -352,7 +181,7 @@ func (s *Bookmap) Render() {
 				draw2dkit.Rectangle(gc, xx, row.Y+1, xx+width, row.Y+s.RowHeight-1)
 				gc.Fill()
 			}
-			font.DrawString(data, int(xx)+4, int(row.Y)+3, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
+			s.DrawString(int(xx)+4, int(row.Y)+3, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
 		}
 
 		//gc.MoveTo(0, row.Y+s.RowHeight)
@@ -361,7 +190,15 @@ func (s *Bookmap) Render() {
 		gc.Stroke()
 	}
 
-	font.DrawString(data, 10, 5, fmt.Sprintf(
+	s.RenderDebug(now)
+
+	s.WriteTexture()
+}
+
+func (s *Bookmap) RenderDebug(now time.Time) {
+	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
+
+	s.DrawString(10, 5, fmt.Sprintf(
 		"PriceScrollPosition %.2f PriceSteps %.2f MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d",
 		s.PriceScrollPosition,
 		s.PriceSteps,
@@ -370,7 +207,5 @@ func (s *Bookmap) Render() {
 		s.ViewportStep,
 	), fg1)
 
-	font.DrawString(data, 10, 25, fmt.Sprintf("graph-time-diff: %s", now.Sub(s.Graph.CurrentTime)), fg1)
-
-	s.Texture.Write(&data.Pix)
+	s.DrawString(10, 25, fmt.Sprintf("graph-time-diff: %s", now.Sub(s.Graph.CurrentTime)), fg1)
 }
