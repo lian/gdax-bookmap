@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"strconv"
-	"time"
 
 	uuid "github.com/satori/go.uuid"
 )
@@ -50,17 +49,21 @@ func PackPacket(data map[string]interface{}) []byte {
 		size, _ := strconv.ParseFloat(data["remaining_size"].(string), 64)
 		binary.Write(buf, binary.LittleEndian, size)
 
-		t, _ := time.Parse(TimeFormat, data["time"].(string))
-		tb, _ := t.MarshalBinary()
-		binary.Write(buf, binary.LittleEndian, tb)
+		/*
+			t, _ := time.Parse(TimeFormat, data["time"].(string))
+			tb, _ := t.MarshalBinary()
+			binary.Write(buf, binary.LittleEndian, tb)
+		*/
 	case "done":
 		binary.Write(buf, binary.LittleEndian, DonePacket)
 		binary.Write(buf, binary.LittleEndian, uint64(data["sequence"].(float64)))
 		id, _ := uuid.FromString(data["order_id"].(string))
 		binary.Write(buf, binary.LittleEndian, id)
-		t, _ := time.Parse(TimeFormat, data["time"].(string))
-		tb, _ := t.MarshalBinary()
-		binary.Write(buf, binary.LittleEndian, tb)
+		/*
+			t, _ := time.Parse(TimeFormat, data["time"].(string))
+			tb, _ := t.MarshalBinary()
+			binary.Write(buf, binary.LittleEndian, tb)
+		*/
 	case "match":
 		binary.Write(buf, binary.LittleEndian, MatchPacket)
 		binary.Write(buf, binary.LittleEndian, uint64(data["sequence"].(float64)))
@@ -83,9 +86,11 @@ func PackPacket(data map[string]interface{}) []byte {
 		size, _ := strconv.ParseFloat(data["size"].(string), 64)
 		binary.Write(buf, binary.LittleEndian, size)
 
-		t, _ := time.Parse(TimeFormat, data["time"].(string))
-		tb, _ := t.MarshalBinary()
-		binary.Write(buf, binary.LittleEndian, tb)
+		/*
+			t, _ := time.Parse(TimeFormat, data["time"].(string))
+			tb, _ := t.MarshalBinary()
+			binary.Write(buf, binary.LittleEndian, tb)
+		*/
 	case "change":
 		binary.Write(buf, binary.LittleEndian, ChangePacket)
 		binary.Write(buf, binary.LittleEndian, uint64(data["sequence"].(float64)))
@@ -107,9 +112,11 @@ func PackPacket(data map[string]interface{}) []byte {
 		size := old_size - new_size
 		binary.Write(buf, binary.LittleEndian, size)
 
-		t, _ := time.Parse(TimeFormat, data["time"].(string))
-		tb, _ := t.MarshalBinary()
-		binary.Write(buf, binary.LittleEndian, tb)
+		/*
+			t, _ := time.Parse(TimeFormat, data["time"].(string))
+			tb, _ := t.MarshalBinary()
+			binary.Write(buf, binary.LittleEndian, tb)
+		*/
 	case "sync":
 		binary.Write(buf, binary.LittleEndian, SyncPacket)
 		binary.Write(buf, binary.LittleEndian, uint64(data["sequence"].(float64)))
@@ -183,10 +190,12 @@ func UnpackPacket(data []byte) map[string]interface{} {
 		binary.Read(buf, binary.LittleEndian, &price)
 		var size float64
 		binary.Read(buf, binary.LittleEndian, &size)
-		var tb [15]byte
-		var t time.Time
-		binary.Read(buf, binary.LittleEndian, &tb)
-		t.UnmarshalBinary(tb[:])
+		/*
+			var tb [15]byte
+			var t time.Time
+			binary.Read(buf, binary.LittleEndian, &tb)
+			t.UnmarshalBinary(tb[:])
+		*/
 
 		return map[string]interface{}{
 			"type":     "open",
@@ -195,23 +204,25 @@ func UnpackPacket(data []byte) map[string]interface{} {
 			"id":       id.String(),
 			"price":    price,
 			"size":     size,
-			"time":     t.Format(TimeFormat),
+			//"time":     t.Format(TimeFormat),
 		}
 	case DonePacket:
 		var sequence uint64
 		binary.Read(buf, binary.LittleEndian, &sequence)
 		var id uuid.UUID
 		binary.Read(buf, binary.LittleEndian, &id)
-		var tb [15]byte
-		var t time.Time
-		binary.Read(buf, binary.LittleEndian, &tb)
-		t.UnmarshalBinary(tb[:])
+		/*
+			var tb [15]byte
+			var t time.Time
+			binary.Read(buf, binary.LittleEndian, &tb)
+			t.UnmarshalBinary(tb[:])
+		*/
 
 		return map[string]interface{}{
 			"type":     "done",
 			"sequence": sequence,
 			"id":       id.String(),
-			"time":     t.Format(TimeFormat),
+			//"time":     t.Format(TimeFormat),
 		}
 	case MatchPacket:
 		var sequence uint64
@@ -230,10 +241,12 @@ func UnpackPacket(data []byte) map[string]interface{} {
 		binary.Read(buf, binary.LittleEndian, &price)
 		var size float64
 		binary.Read(buf, binary.LittleEndian, &size)
-		var tb [15]byte
-		var t time.Time
-		binary.Read(buf, binary.LittleEndian, &tb)
-		t.UnmarshalBinary(tb[:])
+		/*
+			var tb [15]byte
+			var t time.Time
+			binary.Read(buf, binary.LittleEndian, &tb)
+			t.UnmarshalBinary(tb[:])
+		*/
 
 		return map[string]interface{}{
 			"type":           "match",
@@ -243,7 +256,7 @@ func UnpackPacket(data []byte) map[string]interface{} {
 			"taker_order_id": taker_id.String(),
 			"price":          price,
 			"size":           size,
-			"time":           t.Format(TimeFormat),
+			//"time":           t.Format(TimeFormat),
 		}
 	case ChangePacket:
 		var sequence uint64
@@ -260,10 +273,12 @@ func UnpackPacket(data []byte) map[string]interface{} {
 		binary.Read(buf, binary.LittleEndian, &price)
 		var size float64
 		binary.Read(buf, binary.LittleEndian, &size)
-		var tb [15]byte
-		var t time.Time
-		binary.Read(buf, binary.LittleEndian, &tb)
-		t.UnmarshalBinary(tb[:])
+		/*
+			var tb [15]byte
+			var t time.Time
+			binary.Read(buf, binary.LittleEndian, &tb)
+			t.UnmarshalBinary(tb[:])
+		*/
 
 		return map[string]interface{}{
 			"type":           "change",
@@ -272,7 +287,7 @@ func UnpackPacket(data []byte) map[string]interface{} {
 			"maker_order_id": id.String(),
 			"price":          price,
 			"size":           size,
-			"time":           t.Format(TimeFormat),
+			//"time":           t.Format(TimeFormat),
 		}
 	case SyncPacket:
 		var sequence uint64
