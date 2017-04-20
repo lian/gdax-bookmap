@@ -13,7 +13,7 @@ case "$OSTYPE" in
       ;;
     darwin*)
       echo building macOS binary
-      go build -o gdax-bookmap-osx -v -ldflags -s \ 
+      go build -o gdax-bookmap-osx -v -ldflags -s \
         -ldflags "-X main.AppVersion=$version -X main.AppGitHash=$githash" \
         main.go
       ;;
