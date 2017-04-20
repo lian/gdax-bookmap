@@ -22,6 +22,11 @@ import (
 	//_ "net/http/pprof"
 )
 
+var (
+	AppVersion = "unknown"
+	AppGitHash = "unknown"
+)
+
 var ActiveProduct string = "BTC-USD"
 
 func init() {
@@ -172,6 +177,7 @@ var program *shader.Program
 var bookmaps map[string]*opengl_bookmap.Bookmap
 
 func main() {
+	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
 	flag.StringVar(&ActiveProduct, "pair", "BTC-USD", "gdax Product ID")
 	flag.Parse()
 
