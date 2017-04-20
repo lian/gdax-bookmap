@@ -136,7 +136,7 @@ func PackUnixNanoKey(nano int64) []byte {
 	return []byte(fmt.Sprintf("%d", nano))
 }
 
-func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
+func (c *Client) WriteDBOld(book *orderbook.Book, data map[string]interface{}) {
 	c.DBCount += 1
 	now := time.Now()
 
@@ -177,6 +177,33 @@ func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
 						nano += 1
 					}
 				}
+				err = b.Put(key, chunk.Data)
+				if err != nil {
+					fmt.Println("HandleMessage DB Error", err)
+				}
+			}
+			return err
+		})
+		c.DBBatch = []*BatchChunk{}
+	}
+}
+
+func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
+	c.DBCount += 1
+	now := time.Now()
+	t := now
+
+	c.DBBatch = append(c.DBBatch, &BatchChunk{Time: t, Data: PackPacket(data)})
+
+	if now.Sub(c.DBBatchTime).Seconds() > 0.5 {
+		c.DBBatchTime = now
+		c.DB.Update(func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte(book.ID))
+			b.FillPercent = 0.9
+			var err error
+			var key []byte
+			for _, chunk := range c.DBBatch {
+				key = PackUnixNanoKey(chunk.Time.UnixNano())
 				err = b.Put(key, chunk.Data)
 				if err != nil {
 					fmt.Println("HandleMessage DB Error", err)
@@ -287,7 +314,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 			}
 
 			c.WriteDB(book, map[string]interface{}{
-				"type":     "sync_new",
+				"type":     "sync",
 				"sequence": data["sequence"],
 				"time":     data["time"],
 				"bids":     bids,

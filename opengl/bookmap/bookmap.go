@@ -100,15 +100,9 @@ func (s *Bookmap) Render() {
 
 	if s.Graph == nil {
 		graph := NewGraph(s.gdax.DB, s.book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
-
-		tnow := now.Unix() - 1
-		tnow += int64(graph.SlotSteps) - int64(math.Mod(float64(tnow), float64(graph.SlotSteps)))
-		start := time.Unix(tnow-int64(1*graph.SlotSteps), 0)
-
-		if graph.SetStart(start) {
+		if graph.SetStart(now) {
 			s.Graph = graph
 		}
-
 		s.WriteTexture()
 		return
 	}
@@ -116,17 +110,13 @@ func (s *Bookmap) Render() {
 	s.InitPriceScrollPosition()
 	x := s.Texture.Width - 80
 
-	tnow := now.Unix()
-	tnow += int64(s.Graph.SlotSteps) - int64(math.Mod(float64(tnow), float64(s.Graph.SlotSteps)))
-	end := time.Unix(tnow-int64(0*s.Graph.SlotSteps), 0)
-	if !s.Graph.SetEnd(end) {
+	if !s.Graph.SetEnd(now) {
 		s.WriteTexture()
 		return
 	}
 
 	statsSlot := NewTimeSlot(s, now, now)
 	stats := s.Graph.Book.Book.StateAsStats()
-	//stats := s.Graph.Book.Book.StatsCopy()
 	statsSlot.Fill(stats)
 	if s.MaxSizeHisto == 0 {
 		s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)

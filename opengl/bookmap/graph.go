@@ -56,7 +56,7 @@ func (g *Graph) ClearSlotRows() {
 }
 
 func (g *Graph) SetStart(start time.Time) bool {
-	g.Start = start
+	g.Start = RoundTime(start, g.SlotSteps)
 
 	startKey, book, err := g.FetchBook(g.Start)
 	if err != nil {
@@ -231,12 +231,14 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 	g.DB.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket([]byte(g.ProductID)).Cursor()
 
+		first := true
 		var key, buf []byte
 		for key, buf = c.Seek(startKey); !bytes.HasPrefix(buf, []byte("\x04")); key, buf = c.Prev() {
-			if key == nil {
+			if first == false && key == nil {
 				err = errors.New("FetchBook no sync key found")
 				return nil
 			}
+			first = false
 		}
 
 		// apply sync packet
@@ -260,6 +262,8 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 		return nil
 	})
 
-	fmt.Println("FetchBook found startKey", string(startKey), book.Book.Sequence)
+	if err == nil {
+		fmt.Println("FetchBook found startKey", string(startKey), book.Book.Sequence)
+	}
 	return startKey, book, err
 }
