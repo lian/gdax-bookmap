@@ -258,7 +258,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 			"side":           data["side"].(string),
 			"maker_order_id": data["maker_order_id"].(string),
 			"taker_order_id": data["taker_order_id"].(string),
-			//"time":           data["time"].(string),
+			"time":           data["time"].(string),
 		}, false)
 		c.BookChanged(book)
 		break
