@@ -175,10 +175,13 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				fmt.Println("graph out of sequence", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
 				pkt := websocket.UnpackPacket(buf)
 				if pkt["type"].(string) == "sync" {
+					fmt.Println("found sync packet", seq, nextSequence)
 					g.Book.Process(pkt)
+				} else {
+					fmt.Println("no sync packet. continue search", seq, nextSequence)
+					more = true
 				}
 				g.LastProcessedKey = []byte(string(key))
-				more = true
 				jumpNext = true
 				break
 			}
