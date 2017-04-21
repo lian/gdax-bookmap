@@ -235,7 +235,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 		var key, buf []byte
 		for key, buf = c.Seek(startKey); !bytes.HasPrefix(buf, []byte("\x04")); key, buf = c.Prev() {
 			if first == false && key == nil {
-				err = errors.New("FetchBook no sync key found")
+				err = errors.New(fmt.Sprintln("FetchBook", g.ProductID, "no sync key found"))
 				return nil
 			}
 			first = false
@@ -263,7 +263,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 	})
 
 	if err == nil {
-		fmt.Println("FetchBook found startKey", string(startKey), book.Book.Sequence)
+		fmt.Println("FetchBook", g.ProductID, "found startKey", string(startKey), book.Book.Sequence)
 	}
 	return startKey, book, err
 }

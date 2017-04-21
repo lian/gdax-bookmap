@@ -47,6 +47,34 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 	//fmt.Printf("%v %d, %v %v\n", key, scancode, action, mods)
 	if key == glfw.KeyEscape && action == glfw.Press {
 		window.SetShouldClose(true)
+	} else if key == glfw.Key1 && action == glfw.Press {
+		newID := "BTC-USD"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
+	} else if key == glfw.Key2 && action == glfw.Press {
+		newID := "BTC-EUR"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
+	} else if key == glfw.Key3 && action == glfw.Press {
+		newID := "LTC-USD"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
+	} else if key == glfw.Key4 && action == glfw.Press {
+		newID := "ETH-USD"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
 	} else if key == glfw.KeyS && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition += bm.PriceSteps
@@ -176,7 +204,10 @@ var WindowWidth int = 1280
 var WindowHeight int = 720
 
 var program *shader.Program
+var orderbooks map[string]*opengl_orderbook.Orderbook
+var trades map[string]*opengl_trades.Trades
 var bookmaps map[string]*opengl_bookmap.Bookmap
+var gdax *websocket.Client
 
 func main() {
 	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
@@ -235,27 +266,27 @@ func main() {
 
 	bookUpdated := make(chan string, 1024)
 	tradesUpdated := make(chan string)
-	gdax := websocket.New([]string{ActiveProduct}, bookUpdated, tradesUpdated)
+	//gdax := websocket.New([]string{ActiveProduct}, bookUpdated, tradesUpdated)
+	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD"}, bookUpdated, tradesUpdated)
 	go gdax.Run()
 
-	orderbooks := map[string]*opengl_orderbook.Orderbook{}
+	orderbooks = map[string]*opengl_orderbook.Orderbook{}
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
-	trades := map[string]*opengl_trades.Trades{}
+	trades = map[string]*opengl_trades.Trades{}
 
 	padding := 10.0
 	x := padding
 	updatedOrderbook := map[string]bool{}
-	for _, name := range gdax.Products {
-		orderbooks[name] = opengl_orderbook.New(program, gdax, name, 700, x)
-		x += orderbooks[name].Texture.Width + padding
-		bookmaps[name] = opengl_bookmap.New(program, 800, 700, x, gdax.Books[ActiveProduct], gdax)
-		//width := float64(WindowWidth) - x - 254 // 254 from trades widget
-		//bookmaps[name] = opengl_bookmap.New(program, width, 700, x, gdax.Books[ActiveProduct], gdax)
-		x += bookmaps[name].Texture.Width + padding
-		trades[name] = opengl_trades.New(program, gdax, name, 700, x)
-		x += trades[name].Texture.Width + padding
-		updatedOrderbook[name] = true
-	}
+	name := ActiveProduct
+	//for _, name := range gdax.Products {
+	orderbooks[name] = opengl_orderbook.New(program, gdax, name, 700, x)
+	x += orderbooks[name].Texture.Width + padding
+	bookmaps[name] = opengl_bookmap.New(program, 800, 700, x, gdax.Books[ActiveProduct], gdax)
+	x += bookmaps[name].Texture.Width + padding
+	trades[name] = opengl_trades.New(program, gdax, name, 700, x)
+	x += trades[name].Texture.Width + padding
+	updatedOrderbook[name] = true
+	//}
 
 	// Configure global settings
 	gl.Enable(gl.DEPTH_TEST)
@@ -280,15 +311,17 @@ func main() {
 				updatedOrderbook[id] = true
 			}
 			continue
-		case id := <-tradesUpdated:
-			trades[id].Render()
+		//case id := <-tradesUpdated:
+		//trades[id].Render()
+		case <-tradesUpdated:
+			trades[ActiveProduct].Render()
 		case <-tick.C:
 			none := true
 			for id, ok := range updatedOrderbook {
 				if ok {
 					none = false
 					updatedOrderbook[id] = false
-					orderbooks[id].Render()
+					orderbooks[ActiveProduct].Render()
 				}
 			}
 			if none {

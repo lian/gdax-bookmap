@@ -43,8 +43,9 @@ func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 		TradesUpdated: tradesUpdated,
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
-		DBBatch:       []*BatchChunk{},
-		DBBatchTime:   time.Now(),
+		//DBBatch:       []*BatchChunk{},
+		DBBatch:     map[string][]*BatchChunk{},
+		DBBatchTime: time.Now(),
 	}
 
 	for _, name := range products {
@@ -81,9 +82,10 @@ type Client struct {
 	DB            *bolt.DB
 	DBCount       int
 	DBLock        sync.Mutex
-	DBBatch       []*BatchChunk
-	DBBatchTime   time.Time
-	dbEnabled     bool
+	//DBBatch       []*BatchChunk
+	DBBatch     map[string][]*BatchChunk
+	DBBatchTime time.Time
+	dbEnabled   bool
 }
 
 func (c *Client) AddProduct(name string) {
@@ -136,6 +138,7 @@ func PackUnixNanoKey(nano int64) []byte {
 	return []byte(fmt.Sprintf("%d", nano))
 }
 
+/*
 func (c *Client) WriteDBOld(book *orderbook.Book, data map[string]interface{}) {
 	c.DBCount += 1
 	now := time.Now()
@@ -187,31 +190,34 @@ func (c *Client) WriteDBOld(book *orderbook.Book, data map[string]interface{}) {
 		c.DBBatch = []*BatchChunk{}
 	}
 }
+*/
 
 func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
 	c.DBCount += 1
 	now := time.Now()
 	t := now
 
-	c.DBBatch = append(c.DBBatch, &BatchChunk{Time: t, Data: PackPacket(data)})
+	c.DBBatch[book.ID] = append(c.DBBatch[book.ID], &BatchChunk{Time: t, Data: PackPacket(data)})
 
 	if now.Sub(c.DBBatchTime).Seconds() > 0.5 {
 		c.DBBatchTime = now
 		c.DB.Update(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(book.ID))
-			b.FillPercent = 0.9
 			var err error
 			var key []byte
-			for _, chunk := range c.DBBatch {
-				key = PackUnixNanoKey(chunk.Time.UnixNano())
-				err = b.Put(key, chunk.Data)
-				if err != nil {
-					fmt.Println("HandleMessage DB Error", err)
+			for bookID, chunks := range c.DBBatch {
+				b := tx.Bucket([]byte(bookID))
+				b.FillPercent = 0.9
+				for _, chunk := range chunks {
+					key = PackUnixNanoKey(chunk.Time.UnixNano())
+					err = b.Put(key, chunk.Data)
+					if err != nil {
+						fmt.Println("HandleMessage DB Error", err)
+					}
 				}
 			}
 			return err
 		})
-		c.DBBatch = []*BatchChunk{}
+		c.DBBatch = map[string][]*BatchChunk{}
 	}
 }
 

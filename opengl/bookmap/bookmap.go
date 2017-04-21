@@ -52,6 +52,16 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 	return s
 }
 
+func (s *Bookmap) SetBook(book *orderbook.Book) {
+	s.Book = book
+	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 10
+	s.PriceScrollPosition = 0
+	s.MaxSizeHisto = 0
+	s.Graph.ProductID = book.ID
+	start := s.Graph.CurrentTime.Add(time.Duration((s.Graph.SlotSteps*s.Graph.SlotCount)*-1) * time.Second)
+	s.Graph.SetStart(start)
+}
+
 // ugly af
 func round(k float64, precision int) float64 {
 	format := fmt.Sprintf("%%.%df", precision)
