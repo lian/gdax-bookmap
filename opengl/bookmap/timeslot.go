@@ -42,7 +42,7 @@ func NewNewTimeSlot(from time.Time, to time.Time) *TimeSlot {
 }
 
 func NewTimeSlot(bookmap *Bookmap, from time.Time, to time.Time) *TimeSlot {
-	rows := (bookmap.Texture.Height / bookmap.RowHeight)
+	rows := ((bookmap.Texture.Height - bookmap.RowHeight) / bookmap.RowHeight)
 	v := &TimeSlot{
 		From: from,
 		To:   to,

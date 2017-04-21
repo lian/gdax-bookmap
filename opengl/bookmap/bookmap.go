@@ -123,15 +123,17 @@ func (s *Bookmap) Render() {
 		s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
 	}
 
-	s.Graph.DrawTimeslots(gc, x, (s.Texture.Height / s.RowHeight), s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
+	s.Graph.DrawTimeslots(gc, x, ((s.Texture.Height - s.RowHeight) / s.RowHeight), s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
 	s.Graph.DrawBidAskLines(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps)
 	s.Graph.DrawTradeDots(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
+	s.Graph.DrawTimeline(gc, s.Image, x, s.Texture.Height-12.0)
 
 	// draw current (statsSlot) volume slot
 	gc.SetLineWidth(1.0)
 	gc.SetStrokeColor(fg1)
 	gc.SetFillColor(fg1)
 	gc.MoveTo(x, 0)
+	//gc.LineTo(x, s.Texture.Height-s.RowHeight)
 	gc.LineTo(x, s.Texture.Height)
 	gc.Fill()
 

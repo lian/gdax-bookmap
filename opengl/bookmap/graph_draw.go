@@ -1,9 +1,11 @@
 package bookmap
 
 import (
+	"image"
 	"image/color"
 	"math"
 
+	font "github.com/lian/gonky/font/terminus"
 	"github.com/llgcode/draw2d/draw2dimg"
 	"github.com/llgcode/draw2d/draw2dkit"
 )
@@ -180,6 +182,31 @@ func (g *Graph) DrawTimeslots(gc *draw2dimg.GraphicContext, x, rowsCount, rowHei
 				gc.SetFillColor(colourGradientor(strength, g.Fg1, g.Bg1))
 				gc.Fill()
 			}
+		}
+	}
+}
+
+func (g *Graph) DrawTimeline(gc *draw2dimg.GraphicContext, image *image.RGBA, x, y float64) {
+	cx := x
+
+	maxIdx := len(g.Timeslots)
+	for idx := maxIdx - 1; idx >= 0; idx-- {
+		slot := g.Timeslots[idx]
+
+		cx -= float64(g.SlotWidth)
+		if cx < 0 {
+			break
+		}
+
+		if math.Mod(float64(idx), 30) == 0 {
+			/*
+				gc.SetLineWidth(1.0)
+				gc.SetFillColor(g.Bg1)
+				gc.MoveTo(cx, 0)
+				gc.LineTo(cx, y)
+				gc.Fill()
+			*/
+			font.DrawString(image, int(cx), int(y), slot.From.Format("15:04:05"), g.Fg1)
 		}
 	}
 }
