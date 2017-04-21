@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -43,9 +42,7 @@ func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 		TradesUpdated: tradesUpdated,
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
-		//DBBatch:       []*BatchChunk{},
-		DBBatch:     map[string][]*BatchChunk{},
-		DBBatchTime: time.Now(),
+		ProductDB:     map[string]*ProductDB{},
 	}
 
 	for _, name := range products {
@@ -73,6 +70,34 @@ type BatchChunk struct {
 	Time time.Time
 	Data []byte
 }
+
+type ProductDB struct {
+	Count     int
+	BatchTime time.Time
+	Batch     []*BatchChunk
+}
+
+func (p *ProductDB) NextSync(now time.Time) bool {
+	return math.Mod(float64(p.Count), 10000) == 0
+}
+
+func (p *ProductDB) FlushBatch(now time.Time) bool {
+	if now.Sub(p.BatchTime).Seconds() > 0.5 {
+		p.BatchTime = now
+		return true
+	}
+	return false
+}
+
+func (p *ProductDB) AddChunk(chunk *BatchChunk) {
+	p.Count = p.Count + 1
+	p.Batch = append(p.Batch, chunk)
+}
+
+func (p *ProductDB) Clear() {
+	p.Batch = []*BatchChunk{}
+}
+
 type Client struct {
 	BookUpdated   chan string
 	TradesUpdated chan string
@@ -80,18 +105,15 @@ type Client struct {
 	Books         map[string]*orderbook.Book
 	Socket        *websocket.Conn
 	DB            *bolt.DB
-	DBCount       int
-	DBLock        sync.Mutex
-	//DBBatch       []*BatchChunk
-	DBBatch     map[string][]*BatchChunk
-	DBBatchTime time.Time
-	dbEnabled   bool
+	ProductDB     map[string]*ProductDB
+	dbEnabled     bool
 }
 
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.Books[name] = orderbook.NewProductBook(name)
 	c.Books[name].AlwaysSort = true
+	c.ProductDB[name] = &ProductDB{Count: 0, Batch: []*BatchChunk{}}
 	if c.TradesUpdated != nil {
 		c.Books[name].TradesUpdated = c.TradesUpdated
 	}
@@ -192,32 +214,26 @@ func (c *Client) WriteDBOld(book *orderbook.Book, data map[string]interface{}) {
 }
 */
 
-func (c *Client) WriteDB(book *orderbook.Book, data map[string]interface{}) {
-	c.DBCount += 1
-	now := time.Now()
-	t := now
+func (c *Client) WriteDB(now time.Time, book *orderbook.Book, data map[string]interface{}) {
+	product := c.ProductDB[book.ID]
+	product.AddChunk(&BatchChunk{Time: now, Data: PackPacket(data)})
 
-	c.DBBatch[book.ID] = append(c.DBBatch[book.ID], &BatchChunk{Time: t, Data: PackPacket(data)})
-
-	if now.Sub(c.DBBatchTime).Seconds() > 0.5 {
-		c.DBBatchTime = now
+	if product.FlushBatch(now) {
 		c.DB.Update(func(tx *bolt.Tx) error {
 			var err error
 			var key []byte
-			for bookID, chunks := range c.DBBatch {
-				b := tx.Bucket([]byte(bookID))
-				b.FillPercent = 0.9
-				for _, chunk := range chunks {
-					key = PackUnixNanoKey(chunk.Time.UnixNano())
-					err = b.Put(key, chunk.Data)
-					if err != nil {
-						fmt.Println("HandleMessage DB Error", err)
-					}
+			b := tx.Bucket([]byte(book.ID))
+			b.FillPercent = 0.9
+			for _, chunk := range product.Batch {
+				key = PackUnixNanoKey(chunk.Time.UnixNano())
+				err = b.Put(key, chunk.Data)
+				if err != nil {
+					fmt.Println("HandleMessage DB Error", err)
 				}
 			}
 			return err
 		})
-		c.DBBatch = map[string][]*BatchChunk{}
+		product.Clear()
 	}
 }
 
@@ -291,19 +307,22 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 		break
 	}
 
+	product := c.ProductDB[book.ID]
+	now := time.Now()
+
 	if c.dbEnabled {
-		if math.Mod(float64(c.DBCount), 10000) != 0 {
+		if !product.NextSync(now) {
 			if writeDB {
-				c.WriteDB(book, data)
+				c.WriteDB(now, book, data)
 			} else {
-				c.WriteDB(book, map[string]interface{}{
+				c.WriteDB(now, book, map[string]interface{}{
 					"type":     "ignore",
 					"sequence": data["sequence"],
 					"time":     data["time"],
 				})
 			}
 		} else {
-			fmt.Println("==> STORE NEW SYNC")
+			fmt.Println("STORE SYNC", book.ID, product.Count)
 
 			bids := [][]interface{}{}
 			for _, level := range book.Bid {
@@ -319,7 +338,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 				}
 			}
 
-			c.WriteDB(book, map[string]interface{}{
+			c.WriteDB(now, book, map[string]interface{}{
 				"type":     "sync",
 				"sequence": data["sequence"],
 				"time":     data["time"],

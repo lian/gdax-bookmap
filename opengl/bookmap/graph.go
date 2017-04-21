@@ -184,7 +184,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 			}
 
 			if websocket.UnpackTimeKey(key).After(curSlotEnd) {
-				fmt.Println("in sequence defer", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
+				//fmt.Println("in sequence defer", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
 				more = true
 				jumpNext = true
 				g.CurrentTime = websocket.UnpackTimeKey(key)
@@ -235,7 +235,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 		var key, buf []byte
 		for key, buf = c.Seek(startKey); !bytes.HasPrefix(buf, []byte("\x04")); key, buf = c.Prev() {
 			if first == false && key == nil {
-				err = errors.New(fmt.Sprintln("FetchBook", g.ProductID, "no sync key found"))
+				err = errors.New(fmt.Sprintf("FetchBook %s no sync key found", g.ProductID))
 				return nil
 			}
 			first = false

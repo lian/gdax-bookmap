@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/lian/gdax-bookmap/orderbook"
 )
@@ -55,7 +56,7 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 			}
 		}
 
-		client.WriteDB(book, map[string]interface{}{
+		client.WriteDB(time.Now(), book, map[string]interface{}{
 			"type":     "sync",
 			"sequence": full["sequence"],
 			"bids":     packBids,
