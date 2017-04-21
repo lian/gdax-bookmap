@@ -91,6 +91,7 @@ func (g *Graph) DrawBidAskLines(gc *draw2dimg.GraphicContext, x, rowHeight, pric
 	gc.SetLineWidth(2.0)
 
 	// ask line
+	gc.SetStrokeColor(g.Red)
 	cx := x
 	y := 0.0
 	start := true
@@ -103,6 +104,8 @@ func (g *Graph) DrawBidAskLines(gc *draw2dimg.GraphicContext, x, rowHeight, pric
 			break
 		}
 		if slot.isEmpty() || slot.AskPrice == 0.0 {
+			gc.Stroke()
+			start = true
 			continue
 		}
 
@@ -116,10 +119,10 @@ func (g *Graph) DrawBidAskLines(gc *draw2dimg.GraphicContext, x, rowHeight, pric
 		}
 		gc.LineTo(cx, y)
 	}
-	gc.SetStrokeColor(g.Red)
 	gc.Stroke()
 
 	// bid line
+	gc.SetStrokeColor(g.Green)
 	cx = x
 	y = 0.0
 	start = true
@@ -131,6 +134,8 @@ func (g *Graph) DrawBidAskLines(gc *draw2dimg.GraphicContext, x, rowHeight, pric
 			break
 		}
 		if slot.isEmpty() || slot.BidPrice == 0.0 {
+			gc.Stroke()
+			start = true
 			continue
 		}
 
@@ -144,7 +149,6 @@ func (g *Graph) DrawBidAskLines(gc *draw2dimg.GraphicContext, x, rowHeight, pric
 		}
 		gc.LineTo(cx, y)
 	}
-	gc.SetStrokeColor(g.Green)
 	gc.Stroke()
 	gc.SetLineWidth(1.0)
 }

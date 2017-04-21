@@ -36,7 +36,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 	s := &Bookmap{
 		Book:         book,
 		gdax:         gdax,
-		RowHeight:    18,
+		RowHeight:    14,
 		ColumnWidth:  4,
 		ViewportStep: 1,
 		Texture: &texture.Texture{
@@ -148,9 +148,10 @@ func (s *Bookmap) Render() {
 	gc.Fill()
 
 	xx := float64(x + 2)
+	fontPad := int((s.RowHeight - font.Height) / 2.0)
 	for n, row := range statsSlot.Rows {
 		if math.Mod(float64(n), 3) == 0 {
-			s.DrawString(int(xx)-80, int(row.Y)+3, s.Book.ProductInfo.FormatFloat(row.Heigh), fg1)
+			s.DrawString(int(xx)-80, int(row.Y)+fontPad, s.Book.ProductInfo.FormatFloat(row.Heigh), fg1)
 		}
 
 		width := 80.0
@@ -184,7 +185,7 @@ func (s *Bookmap) Render() {
 				draw2dkit.Rectangle(gc, xx, row.Y+1, xx+width, row.Y+s.RowHeight-1)
 				gc.Fill()
 			}
-			s.DrawString(int(xx)+4, int(row.Y)+3, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
+			s.DrawString(int(xx)+4, int(row.Y)+fontPad, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
 		}
 
 		//gc.MoveTo(0, row.Y+s.RowHeight)
