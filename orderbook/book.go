@@ -98,6 +98,7 @@ type Book struct {
 	Stats           *BookMapStats
 	SkipStatsUpdate bool
 	AlwaysSort      bool
+	ProductInfo     ProductInfo
 }
 
 func New(id string) *Book {
@@ -110,6 +111,16 @@ func New(id string) *Book {
 	}
 	//b.ResetStats()
 	return b
+}
+
+func NewProductBook(id string) *Book {
+	b := New(id)
+	b.InitProductInfo()
+	return b
+}
+
+func (b *Book) InitProductInfo() {
+	b.ProductInfo = FetchProductInfo(b.ID)
 }
 
 // TODO: improve. prolly memory/gc hungy
@@ -244,7 +255,7 @@ func (b *Book) Add(data map[string]interface{}) {
 func (b *Book) Remove(order_id string) {
 	order, ok := b.OrderMap[order_id]
 	if !ok {
-		fmt.Println("BOOK wanted to remove order but was not found", order_id)
+		//fmt.Println("BOOK wanted to remove order but was not found", order_id)
 		return
 	}
 	delete(b.OrderMap, order_id)

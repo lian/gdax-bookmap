@@ -96,7 +96,7 @@ func (s *Trades) Render() {
 		cx := x + (sizePadding - (len(size) * font.Width))
 		font.DrawString(data, cx, y, size, fg1)
 
-		price := fmt.Sprintf("%.2f", trade.Price)
+		price := book.ProductInfo.FormatFloat(trade.Price)
 		cx = x + (pricePadding - (len(price) * font.Width))
 		font.DrawString(data, cx, y, price, fg)
 

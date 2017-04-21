@@ -88,7 +88,7 @@ type Client struct {
 
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
-	c.Books[name] = orderbook.New(name)
+	c.Books[name] = orderbook.NewProductBook(name)
 	c.Books[name].AlwaysSort = true
 	if c.TradesUpdated != nil {
 		c.Books[name].TradesUpdated = c.TradesUpdated

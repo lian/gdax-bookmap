@@ -24,7 +24,7 @@ type Bookmap struct {
 	PriceSteps          float64 // zoom
 	MaxSizeHisto        float64
 	RowHeight           float64
-	book                *orderbook.Book
+	Book                *orderbook.Book
 	gdax                *websocket.Client
 	ColumnWidth         float64
 	ViewportStep        int
@@ -34,9 +34,8 @@ type Bookmap struct {
 
 func New(program *shader.Program, width, height float64, x float64, book *orderbook.Book, gdax *websocket.Client) *Bookmap {
 	s := &Bookmap{
-		book:         book,
+		Book:         book,
 		gdax:         gdax,
-		PriceSteps:   0.50,
 		RowHeight:    18,
 		ColumnWidth:  4,
 		ViewportStep: 1,
@@ -47,6 +46,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 			Height: height,
 		},
 	}
+	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 10
 	s.Texture.Setup(program)
 	s.Image = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
 	return s
@@ -67,9 +67,10 @@ func (s *Bookmap) InitPriceScrollPosition() {
 
 	rowsCount := s.Texture.Height / s.RowHeight
 
-	centerPrice := s.book.CenterPrice()
+	centerPrice := s.Book.CenterPrice()
 	if centerPrice != 0.0 {
-		s.PriceScrollPosition = round(centerPrice, 0) + (float64(int(rowsCount/2)) * s.PriceSteps)
+		//s.PriceScrollPosition = round(centerPrice, 0) + (float64(int(rowsCount/2)) * s.PriceSteps)
+		s.PriceScrollPosition = centerPrice + (float64(int(rowsCount/2)) * s.PriceSteps)
 	}
 }
 
@@ -99,7 +100,7 @@ func (s *Bookmap) Render() {
 	now := time.Now()
 
 	if s.Graph == nil {
-		graph := NewGraph(s.gdax.DB, s.book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
+		graph := NewGraph(s.gdax.DB, s.Book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
 		if graph.SetStart(now) {
 			s.Graph = graph
 		}
@@ -137,7 +138,7 @@ func (s *Bookmap) Render() {
 	xx := float64(x + 2)
 	for n, row := range statsSlot.Rows {
 		if math.Mod(float64(n), 3) == 0 {
-			s.DrawString(int(xx)-80, int(row.Y)+3, fmt.Sprintf("%.2f", row.Heigh), fg1)
+			s.DrawString(int(xx)-80, int(row.Y)+3, s.Book.ProductInfo.FormatFloat(row.Heigh), fg1)
 		}
 
 		width := 80.0
@@ -189,9 +190,9 @@ func (s *Bookmap) RenderDebug(now time.Time) {
 	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
 
 	s.DrawString(10, 5, fmt.Sprintf(
-		"PriceScrollPosition %.2f PriceSteps %.2f MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d",
-		s.PriceScrollPosition,
-		s.PriceSteps,
+		"PriceScrollPosition %s PriceSteps %s MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d",
+		s.Book.ProductInfo.FormatFloat(s.PriceScrollPosition),
+		s.Book.ProductInfo.FormatFloat(s.PriceSteps),
 		s.MaxSizeHisto,
 		s.ColumnWidth,
 		s.ViewportStep,

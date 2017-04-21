@@ -95,7 +95,7 @@ func (s *Orderbook) Render() {
 		cx := x + (sizePadding - (len(size) * font.Width))
 		font.DrawString(data, cx, y, size, fg1)
 
-		price := fmt.Sprintf("%.2f", s.Price)
+		price := book.ProductInfo.FormatFloat(s.Price)
 		cx = x + (pricePadding - (len(price) * font.Width))
 		font.DrawString(data, cx, y, price, red)
 	}
@@ -114,7 +114,7 @@ func (s *Orderbook) Render() {
 		cx := x + (sizePadding - (len(size) * font.Width))
 		font.DrawString(data, cx, y, size, fg1)
 
-		price := fmt.Sprintf("%.2f", s.Price)
+		price := book.ProductInfo.FormatFloat(s.Price)
 		cx = x + (pricePadding - (len(price) * font.Width))
 		font.DrawString(data, cx, y, price, green)
 	}
@@ -124,7 +124,7 @@ func (s *Orderbook) Render() {
 		spread = asks[0].Price - bids[0].Price
 	}
 
-	text := fmt.Sprintf("%.2f", spread)
+	text := book.ProductInfo.FormatFloat(spread)
 	y = (int(s.Texture.Height) / 2)
 	x = (pricePadding - (len(text) * font.Width))
 	font.DrawString(data, x, y, text, fg1)
