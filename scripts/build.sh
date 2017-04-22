@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 
-version=alpha-v5
+version=0.0.2
 githash=$(git rev-parse HEAD)
 
 case "$OSTYPE" in

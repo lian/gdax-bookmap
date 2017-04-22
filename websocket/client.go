@@ -225,7 +225,16 @@ func (c *Client) WriteDB(now time.Time, book *orderbook.Book, data map[string]in
 			b := tx.Bucket([]byte(book.ID))
 			b.FillPercent = 0.9
 			for _, chunk := range product.Batch {
-				key = PackUnixNanoKey(chunk.Time.UnixNano())
+				nano := chunk.Time.UnixNano()
+				// windows system clock resolution https://github.com/golang/go/issues/8687
+				for {
+					key = PackUnixNanoKey(nano)
+					if b.Get(key) == nil {
+						break
+					} else {
+						nano += 1
+					}
+				}
 				err = b.Put(key, chunk.Data)
 				if err != nil {
 					fmt.Println("HandleMessage DB Error", err)

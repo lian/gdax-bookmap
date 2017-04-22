@@ -30,6 +30,7 @@ type Bookmap struct {
 	ViewportStep        int
 	Graph               *Graph
 	Image               *image.RGBA
+	IgnoreTexture       bool
 }
 
 func New(program *shader.Program, width, height float64, x float64, book *orderbook.Book, gdax *websocket.Client) *Bookmap {
@@ -47,7 +48,9 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 		},
 	}
 	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 10
-	s.Texture.Setup(program)
+	if program != nil {
+		s.Texture.Setup(program)
+	}
 	s.Image = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
 	return s
 }
@@ -85,6 +88,9 @@ func (s *Bookmap) InitPriceScrollPosition() {
 }
 
 func (s *Bookmap) WriteTexture() {
+	if s.IgnoreTexture {
+		return
+	}
 	s.Texture.Write(&s.Image.Pix)
 }
 
