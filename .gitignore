@@ -1,3 +1,4 @@
 gdax-bookmap-*
 *.db
 scripts/builds
+scripts/qemu-builds.sh
