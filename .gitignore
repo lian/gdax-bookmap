@@ -1,2 +1,3 @@
 gdax-bookmap-*
 *.db
+scripts/builds

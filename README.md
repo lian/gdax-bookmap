@@ -9,9 +9,9 @@
 
 ```
 export GOPATH=$HOME/go
-go get -v -u github.com/lian/gdax-bookmap
+go get -v -d -u github.com/lian/gdax-bookmap
 cd $GOPATH/src/github.com/lian/gdax-bookmap
-./build.sh
+./script/build.sh
 ```
 
 ## current controls

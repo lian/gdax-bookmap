@@ -1,0 +1,24 @@
+#!/bin/bash
+cd "$(dirname ${BASH_SOURCE[0]})"
+
+set -x
+
+mkdir -p builds/tmp
+cd builds/tmp
+
+version=alpha-v7
+githash=$(git rev-parse HEAD)
+
+ssh qemu "/opt/bin/xgo -v -x  -ldflags '-X main.AppVersion=$version -X main.AppGitHash=$githash' --targets=darwin/amd64,windows/386 github.com/lian/gdax-bookmap"
+scp qemu:gdax-bookmap-windows-4.0-386.exe gdax-bookmap.exe
+zip -r ../gdax-bookmap-win32.zip gdax-bookmap.exe
+rm gdax-bookmap.exe
+
+cp -r ../../macOS-tmpl gdax-bookmap.app
+scp qemu:gdax-bookmap-darwin-10.6-amd64 gdax-bookmap.app/Contents/MacOS/gdax-bookmap
+zip -r ../gdax-bookmap-osx.zip gdax-bookmap.app
+rm -r gdax-bookmap.app
+
+cd ..
+echo VERSION gdax-bookmap $version-$githash > checksum.txt
+sha256sum gdax-bookmap-win32.zip gdax-bookmap-osx.zip >> checksum.txt
