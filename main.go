@@ -75,6 +75,20 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		orderbooks[ActiveProduct].ID = newID
 		trades[ActiveProduct].ID = newID
 		trades[ActiveProduct].Render()
+	} else if key == glfw.Key5 && action == glfw.Press {
+		newID := "ETH-BTC"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
+	} else if key == glfw.Key6 && action == glfw.Press {
+		newID := "LTC-BTC"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
 	} else if key == glfw.KeyS && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition += bm.PriceSteps
@@ -267,7 +281,8 @@ func main() {
 	bookUpdated := make(chan string, 1024)
 	tradesUpdated := make(chan string)
 	//gdax := websocket.New([]string{ActiveProduct}, bookUpdated, tradesUpdated)
-	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD"}, bookUpdated, tradesUpdated)
+	//gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD"}, bookUpdated, tradesUpdated)
+	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC"}, bookUpdated, tradesUpdated)
 	go gdax.Run()
 
 	orderbooks = map[string]*opengl_orderbook.Orderbook{}

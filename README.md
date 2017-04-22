@@ -17,7 +17,7 @@ cd $GOPATH/src/github.com/lian/gdax-bookmap
 ## current controls
 
 ```
-1/2/3/4 selects BTC-USD, BTC-EUR, ETH-USD and LTC-USD
+1/2/3/4/5/6 selects BTC-USD, BTC-EUR, LTC--USD, ETH-USD, LTC-BTC and ETH-BTC
 q/esc to quit
 up/down to change the price steps (aka price zoom) (PriceSteps)
 w/s to change the graph price position (PriceScrollPosition)
