@@ -46,11 +46,11 @@ func (g *Graph) DrawTradeDots(gc *draw2dimg.GraphicContext, x, rowHeight, priceP
 		angle := 360 * (math.Pi / 180.0)
 
 		xx := (cx + (float64(g.SlotWidth) / 2))
-		t := (slot.AskTradeSize / maxSizeHisto)
+		t := (slot.AskTradeSize / (maxSizeHisto / 2))
 		if t > 1.0 {
 			t = 1.0
 		}
-		size := 4 + float64(t*10)
+		size := 4 + float64(t*15)
 		gc.ArcTo(xx, y, size, size, startAngle, angle)
 		gc.SetFillColor(g.Green)
 		gc.Fill()
@@ -76,11 +76,11 @@ func (g *Graph) DrawTradeDots(gc *draw2dimg.GraphicContext, x, rowHeight, priceP
 		angle := 360 * (math.Pi / 180.0)
 
 		xx := (cx + (float64(g.SlotWidth) / 2))
-		t := (slot.BidTradeSize / maxSizeHisto)
+		t := (slot.AskTradeSize / (maxSizeHisto / 2))
 		if t > 1.0 {
 			t = 1.0
 		}
-		size := 4 + float64(t*10)
+		size := 4 + float64(t*15)
 		gc.ArcTo(xx, y, size, size, startAngle, angle)
 		gc.SetFillColor(g.Red)
 		gc.Fill()

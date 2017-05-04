@@ -106,7 +106,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 	} else if key == glfw.KeyA && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ViewportStep = bm.ViewportStep / 2
-		if bm.ViewportStep < 0 {
+		if bm.ViewportStep <= 0 {
 			bm.ViewportStep = 1
 		}
 		bm.Graph.SlotSteps = bm.ViewportStep
@@ -121,7 +121,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		if bm.MaxSizeHisto < 0 {
 			bm.MaxSizeHisto = 1
 		}
-	} else if key == glfw.KeyUp && action == glfw.Press {
+	} else if key == glfw.KeyDown && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceSteps = bm.PriceSteps * 2
 		if bm.PriceSteps >= float64(bm.Book.ProductInfo.BaseMaxSize) {
@@ -130,7 +130,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm.PriceScrollPosition = 0
 		bm.InitPriceScrollPosition()
 		bm.Graph.ClearSlotRows()
-	} else if key == glfw.KeyDown && action == glfw.Press {
+	} else if key == glfw.KeyUp && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceSteps = bm.PriceSteps / 2
 		if bm.PriceSteps <= float64(bm.Book.ProductInfo.QuoteIncrement) {
