@@ -78,9 +78,13 @@ func (s *Bookmap) InitPriceScrollPosition() {
 		return
 	}
 
+	if s.Graph == nil {
+		return
+	}
+
 	rowsCount := s.Texture.Height / s.RowHeight
 
-	centerPrice := s.Book.CenterPrice()
+	centerPrice := s.Graph.Book.Book.CenterPrice()
 	if centerPrice != 0.0 {
 		//s.PriceScrollPosition = round(centerPrice, 0) + (float64(int(rowsCount/2)) * s.PriceSteps)
 		s.PriceScrollPosition = centerPrice + (float64(int(rowsCount/2)) * s.PriceSteps)
@@ -209,7 +213,8 @@ func (s *Bookmap) RenderDebug(now time.Time) {
 	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
 
 	s.DrawString(10, 5, fmt.Sprintf(
-		"PriceScrollPosition %s PriceSteps %s MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d",
+		"%s PriceScrollPos %s PriceSteps %s MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d",
+		s.Book.ID,
 		s.Book.ProductInfo.FormatFloat(s.PriceScrollPosition),
 		s.Book.ProductInfo.FormatFloat(s.PriceSteps),
 		s.MaxSizeHisto,
