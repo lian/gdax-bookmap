@@ -295,8 +295,9 @@ func main() {
 	name := ActiveProduct
 	//for _, name := range gdax.Products {
 	orderbooks[name] = opengl_orderbook.New(program, gdax, name, 700, x)
-	x += orderbooks[name].Texture.Width + padding
-	bookmaps[name] = opengl_bookmap.New(program, 800, 700, x, gdax.Books[ActiveProduct], gdax)
+	//x += orderbooks[name].Texture.Width + padding
+	//bookmaps[name] = opengl_bookmap.New(program, 800, 700, x, gdax.Books[ActiveProduct], gdax)
+	bookmaps[name] = opengl_bookmap.New(program, 1000, 700, x, gdax.Books[ActiveProduct], gdax)
 	x += bookmaps[name].Texture.Width + padding
 	trades[name] = opengl_trades.New(program, gdax, name, 700, x)
 	x += trades[name].Texture.Width + padding
@@ -336,7 +337,7 @@ func main() {
 				if ok {
 					none = false
 					updatedOrderbook[id] = false
-					orderbooks[ActiveProduct].Render()
+					//orderbooks[ActiveProduct].Render()
 				}
 			}
 			if none {
@@ -354,9 +355,11 @@ func main() {
 
 		program.Use()
 
-		for _, orderbook := range orderbooks {
-			orderbook.Texture.Draw()
-		}
+		/*
+			for _, orderbook := range orderbooks {
+				orderbook.Texture.Draw()
+			}
+		*/
 		for _, bookmap := range bookmaps {
 			bookmap.Texture.Draw()
 		}
