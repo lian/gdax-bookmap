@@ -46,7 +46,7 @@ func (g *Graph) DrawTradeDots(gc *draw2dimg.GraphicContext, x, rowHeight, priceP
 		angle := 360 * (math.Pi / 180.0)
 
 		xx := (cx + (float64(g.SlotWidth) / 2))
-		t := (slot.AskTradeSize / (maxSizeHisto / 2))
+		t := (slot.AskTradeSize / (maxSizeHisto * 0.8))
 		if t > 1.0 {
 			t = 1.0
 		}
@@ -76,7 +76,7 @@ func (g *Graph) DrawTradeDots(gc *draw2dimg.GraphicContext, x, rowHeight, priceP
 		angle := 360 * (math.Pi / 180.0)
 
 		xx := (cx + (float64(g.SlotWidth) / 2))
-		t := (slot.AskTradeSize / (maxSizeHisto / 2))
+		t := (slot.BidTradeSize / (maxSizeHisto * 0.8))
 		if t > 1.0 {
 			t = 1.0
 		}

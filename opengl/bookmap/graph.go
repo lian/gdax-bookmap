@@ -49,6 +49,16 @@ func NewGraph(db *bolt.DB, productID string, width, slotWidth, slotSteps int) *G
 	return g
 }
 
+func (g *Graph) MaxHistoSize() float64 {
+	var max float64
+	for _, slot := range g.Timeslots {
+		if slot.MaxSize > max {
+			max = slot.MaxSize
+		}
+	}
+	return max
+}
+
 func (g *Graph) ClearSlotRows() {
 	for _, slot := range g.Timeslots {
 		slot.Rows = make([]*TimeSlotRow, 0, len(slot.Rows))

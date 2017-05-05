@@ -143,7 +143,8 @@ func (s *Bookmap) Render() {
 	stats := s.Graph.Book.Book.StateAsStats()
 	statsSlot.Fill(stats)
 	if s.MaxSizeHisto == 0 || s.AutoHistoSize {
-		s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
+		//s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
+		s.MaxSizeHisto = round(s.Graph.MaxHistoSize()*0.60, 0)
 	}
 
 	s.Graph.DrawTimeslots(gc, x, ((s.Texture.Height - s.RowHeight) / s.RowHeight), s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
