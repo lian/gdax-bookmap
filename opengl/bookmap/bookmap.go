@@ -31,6 +31,8 @@ type Bookmap struct {
 	Graph               *Graph
 	Image               *image.RGBA
 	IgnoreTexture       bool
+	ShowDebug           bool
+	AutoHistoSize       bool
 }
 
 func New(program *shader.Program, width, height float64, x float64, book *orderbook.Book, gdax *websocket.Client) *Bookmap {
@@ -40,6 +42,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 		RowHeight:    14,
 		ColumnWidth:  4,
 		ViewportStep: 1,
+		ShowDebug:    true,
 		Texture: &texture.Texture{
 			X:      x,
 			Y:      height + 10,
@@ -139,7 +142,7 @@ func (s *Bookmap) Render() {
 	statsSlot := NewTimeSlot(s, now, now)
 	stats := s.Graph.Book.Book.StateAsStats()
 	statsSlot.Fill(stats)
-	if s.MaxSizeHisto == 0 {
+	if s.MaxSizeHisto == 0 || s.AutoHistoSize {
 		s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
 	}
 
@@ -205,14 +208,19 @@ func (s *Bookmap) Render() {
 	}
 
 	s.RenderDebug(now)
+	s.DrawString(10, 5, fmt.Sprintf("%s %s", s.Book.ID, s.Book.ProductInfo.FormatFloat(s.Graph.Book.Book.LastPrice())), fg1)
 
 	s.WriteTexture()
 }
 
 func (s *Bookmap) RenderDebug(now time.Time) {
+	if !s.ShowDebug {
+		return
+	}
+
 	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
 
-	s.DrawString(10, 5, fmt.Sprintf(
+	s.DrawString(10, 25, fmt.Sprintf(
 		"%s PriceScrollPos %s PriceSteps %s MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d",
 		s.Book.ID,
 		s.Book.ProductInfo.FormatFloat(s.PriceScrollPosition),
@@ -222,5 +230,5 @@ func (s *Bookmap) RenderDebug(now time.Time) {
 		s.ViewportStep,
 	), fg1)
 
-	s.DrawString(10, 25, fmt.Sprintf("graph-time-diff: %s", now.Sub(s.Graph.CurrentTime)), fg1)
+	s.DrawString(10, 40, fmt.Sprintf("graph-time-diff: %s", now.Sub(s.Graph.CurrentTime)), fg1)
 }

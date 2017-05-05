@@ -462,6 +462,17 @@ func (b *Book) Match(data map[string]interface{}, change bool) {
 	}
 }
 
+func (b *Book) LastPrice() float64 {
+	var lastPrice float64
+	i := len(b.Trades)
+	if i > 0 {
+		lastPrice = b.Trades[i-1].Price
+	} else {
+		lastPrice = b.CenterPrice()
+	}
+	return lastPrice
+}
+
 func (b *Book) AddTrade(match *Order) {
 	//fmt.Println("trade", match)
 	if len(b.Trades) >= 50 {
