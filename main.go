@@ -89,6 +89,27 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		orderbooks[ActiveProduct].ID = newID
 		trades[ActiveProduct].ID = newID
 		trades[ActiveProduct].Render()
+	} else if key == glfw.Key7 && action == glfw.Press {
+		newID := "BCH-USD"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
+	} else if key == glfw.Key8 && action == glfw.Press {
+		newID := "BCH-BTC"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
+	} else if key == glfw.Key9 && action == glfw.Press {
+		newID := "BCH-EUR"
+		bm := bookmaps[ActiveProduct]
+		bm.SetBook(gdax.Books[newID])
+		orderbooks[ActiveProduct].ID = newID
+		trades[ActiveProduct].ID = newID
+		trades[ActiveProduct].Render()
 	} else if key == glfw.KeyS && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition += bm.PriceSteps
@@ -158,6 +179,9 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm.PriceScrollPosition = 0.0
 		bm.InitPriceScrollPosition()
 		bm.Graph.ClearSlotRows()
+	} else if key == glfw.KeyP && action == glfw.Press {
+		bm := bookmaps[ActiveProduct]
+		bm.AutoScroll = !bm.AutoScroll
 	} else if key == glfw.KeyR && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = 0.0
@@ -282,7 +306,7 @@ func main() {
 	tradesUpdated := make(chan string)
 	//gdax := websocket.New([]string{ActiveProduct}, bookUpdated, tradesUpdated)
 	//gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD"}, bookUpdated, tradesUpdated)
-	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC"}, bookUpdated, tradesUpdated)
+	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC", "BCH-EUR"}, bookUpdated, tradesUpdated)
 	go gdax.Run()
 
 	orderbooks = map[string]*opengl_orderbook.Orderbook{}

@@ -33,6 +33,7 @@ type Bookmap struct {
 	IgnoreTexture       bool
 	ShowDebug           bool
 	AutoHistoSize       bool
+	AutoScroll          bool
 }
 
 func New(program *shader.Program, width, height float64, x float64, book *orderbook.Book, gdax *websocket.Client) *Bookmap {
@@ -94,6 +95,29 @@ func (s *Bookmap) InitPriceScrollPosition() {
 	}
 }
 
+func (s *Bookmap) DoAutoScroll() {
+	if !s.AutoScroll {
+		return
+	}
+
+	if s.Graph == nil {
+		return
+	}
+
+	rowsCount := s.Texture.Height / s.RowHeight
+
+	last := s.PriceScrollPosition
+
+	//price := s.Graph.Book.Book.LastPrice()
+	price := s.Graph.Book.Book.CenterPrice()
+	if price != 0.0 {
+		s.PriceScrollPosition = (price - math.Mod(price, s.PriceSteps)) + (float64(rowsCount/2) * s.PriceSteps)
+		if last != s.PriceScrollPosition {
+			s.Graph.ClearSlotRows()
+		}
+	}
+}
+
 func (s *Bookmap) WriteTexture() {
 	if s.IgnoreTexture {
 		return
@@ -132,6 +156,7 @@ func (s *Bookmap) Render() {
 	}
 
 	s.InitPriceScrollPosition()
+	s.DoAutoScroll()
 	x := s.Texture.Width - 80
 
 	if !s.Graph.SetEnd(now) {

@@ -17,12 +17,13 @@ cd $GOPATH/src/github.com/lian/gdax-bookmap
 ## current controls
 
 ```
-1/2/3/4/5/6 selects BTC-USD, BTC-EUR, LTC--USD, ETH-USD, LTC-BTC and ETH-BTC
+1/2/3/4/5/6/7/8/9 selects BTC-USD, BTC-EUR, LTC--USD, ETH-USD, LTC-BTC, ETH-BTC, BCH-USD, BCH-BTC, BCH-EUR
 q/esc to quit
+c center the graph to last price
+p enable auto center
 up/down to change the price steps (aka price zoom) (PriceSteps)
-w/s to change the graph price position (PriceScrollPosition)
 j/k to change the volume chunks brightness (MaxSizeHisto)
+w/s to change the graph price position (PriceScrollPosition)
 a/d to change how many seconds a chunk contains (aka time zoom) (ViewportStep)
-left/right to change the column withd of volume chunks (ColumnWidth)
-c to try to center the graph by last price/trade (buggy)
+left/right to change the column width of volume chunks (ColumnWidth)
 ```
