@@ -16,10 +16,10 @@ import (
 
 	"github.com/lian/gonky/shader"
 
-	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
-	opengl_orderbook "github.com/lian/gdax-bookmap/opengl/orderbook"
-	opengl_trades "github.com/lian/gdax-bookmap/opengl/trades"
 	//_ "net/http/pprof"
+
+	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
+	opengl_trades "github.com/lian/gdax-bookmap/opengl/trades"
 )
 
 var (
@@ -48,54 +48,19 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 	if key == glfw.KeyEscape && action == glfw.Press {
 		window.SetShouldClose(true)
 	} else if key == glfw.Key1 && action == glfw.Press {
-		newID := "BTC-USD"
-		bm := bookmaps[ActiveProduct]
-		bm.SetBook(gdax.Books[newID])
-		orderbooks[ActiveProduct].ID = newID
-		trades[ActiveProduct].ID = newID
-		trades[ActiveProduct].Render()
+		ActiveProduct = "BTC-USD"
 	} else if key == glfw.Key2 && action == glfw.Press {
-		newID := "BTC-EUR"
-		bm := bookmaps[ActiveProduct]
-		bm.SetBook(gdax.Books[newID])
-		orderbooks[ActiveProduct].ID = newID
-		trades[ActiveProduct].ID = newID
-		trades[ActiveProduct].Render()
+		ActiveProduct = "BTC-EUR"
 	} else if key == glfw.Key3 && action == glfw.Press {
-		newID := "LTC-USD"
-		bm := bookmaps[ActiveProduct]
-		bm.SetBook(gdax.Books[newID])
-		orderbooks[ActiveProduct].ID = newID
-		trades[ActiveProduct].ID = newID
-		trades[ActiveProduct].Render()
+		ActiveProduct = "LTC-USD"
 	} else if key == glfw.Key4 && action == glfw.Press {
-		newID := "ETH-USD"
-		bm := bookmaps[ActiveProduct]
-		bm.SetBook(gdax.Books[newID])
-		orderbooks[ActiveProduct].ID = newID
-		trades[ActiveProduct].ID = newID
-		trades[ActiveProduct].Render()
+		ActiveProduct = "ETH-USD"
 	} else if key == glfw.Key5 && action == glfw.Press {
-		newID := "ETH-BTC"
-		bm := bookmaps[ActiveProduct]
-		bm.SetBook(gdax.Books[newID])
-		orderbooks[ActiveProduct].ID = newID
-		trades[ActiveProduct].ID = newID
-		trades[ActiveProduct].Render()
+		ActiveProduct = "ETH-BTC"
 	} else if key == glfw.Key6 && action == glfw.Press {
-		newID := "LTC-BTC"
-		bm := bookmaps[ActiveProduct]
-		bm.SetBook(gdax.Books[newID])
-		orderbooks[ActiveProduct].ID = newID
-		trades[ActiveProduct].ID = newID
-		trades[ActiveProduct].Render()
+		ActiveProduct = "LTC-BTC"
 	} else if key == glfw.Key7 && action == glfw.Press {
-		newID := "BCH-USD"
-		bm := bookmaps[ActiveProduct]
-		bm.SetBook(gdax.Books[newID])
-		orderbooks[ActiveProduct].ID = newID
-		trades[ActiveProduct].ID = newID
-		trades[ActiveProduct].Render()
+		ActiveProduct = "BCH-USD"
 	} else if key == glfw.KeyS && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition += bm.PriceSteps
@@ -166,8 +131,9 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm.InitPriceScrollPosition()
 		bm.Graph.ClearSlotRows()
 	} else if key == glfw.KeyP && action == glfw.Press {
-		bm := bookmaps[ActiveProduct]
-		bm.AutoScroll = !bm.AutoScroll
+		for _, bm := range bookmaps {
+			bm.AutoScroll = !bm.AutoScroll
+		}
 	} else if key == glfw.KeyR && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = 0.0
@@ -228,7 +194,6 @@ var WindowWidth int = 1280
 var WindowHeight int = 720
 
 var program *shader.Program
-var orderbooks map[string]*opengl_orderbook.Orderbook
 var trades map[string]*opengl_trades.Trades
 var bookmaps map[string]*opengl_bookmap.Bookmap
 var gdax *websocket.Client
@@ -288,29 +253,28 @@ func main() {
 	w, h := window.GetFramebufferSize()
 	SetupPerspective(w, h, program)
 
-	bookUpdated := make(chan string, 1024)
-	tradesUpdated := make(chan string)
-	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD"}, bookUpdated, tradesUpdated)
+	//bookUpdated := make(chan string, 1024)
+	//tradesUpdated := make(chan string)
+	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD"}, nil, nil)
 	go gdax.Run()
 
-	orderbooks = map[string]*opengl_orderbook.Orderbook{}
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
 	trades = map[string]*opengl_trades.Trades{}
 
 	padding := 10.0
 	x := padding
 	updatedOrderbook := map[string]bool{}
-	name := ActiveProduct
-	//for _, name := range gdax.Products {
-	orderbooks[name] = opengl_orderbook.New(program, gdax, name, 700, x)
-	//x += orderbooks[name].Texture.Width + padding
-	//bookmaps[name] = opengl_bookmap.New(program, 800, 700, x, gdax.Books[ActiveProduct], gdax)
-	bookmaps[name] = opengl_bookmap.New(program, 1000, 700, x, gdax.Books[ActiveProduct], gdax)
-	x += bookmaps[name].Texture.Width + padding
-	trades[name] = opengl_trades.New(program, gdax, name, 700, x)
-	x += trades[name].Texture.Width + padding
-	updatedOrderbook[name] = true
-	//}
+	for _, name := range gdax.Products {
+		bookmaps[name] = opengl_bookmap.New(program, 1000, 700, x, gdax.Books[name], gdax)
+	}
+	x += bookmaps[ActiveProduct].Texture.Width + padding
+	for _, name := range gdax.Products {
+		trades[name] = opengl_trades.New(program, gdax, name, 700, x)
+	}
+	x += trades[ActiveProduct].Texture.Width + padding
+	for _, name := range gdax.Products {
+		updatedOrderbook[name] = true
+	}
 
 	// Configure global settings
 	gl.Enable(gl.DEPTH_TEST)
@@ -318,43 +282,24 @@ func main() {
 	gl.ClearColor(0.18, 0.23, 0.27, 1.0)
 
 	pollEventsTimer := time.NewTicker(time.Millisecond * 100)
-	tick := time.NewTicker(time.Millisecond * 500)
 	second := time.NewTicker(time.Second * 1)
+	halfsecond := time.NewTicker(time.Millisecond * 500)
 
 	for !window.ShouldClose() {
 		select {
 		case <-pollEventsTimer.C:
 			glfw.PollEvents()
 			continue
-		case id := <-bookUpdated:
-			updatedOrderbook[id] = true
-
-			s := len(bookUpdated)
-			for i := s; i < s; i += 1 {
-				id = <-bookUpdated
-				updatedOrderbook[id] = true
-			}
-			continue
-		//case id := <-tradesUpdated:
-		//trades[id].Render()
-		case <-tradesUpdated:
+		case <-halfsecond.C:
 			trades[ActiveProduct].Render()
-		case <-tick.C:
-			none := true
-			for id, ok := range updatedOrderbook {
-				if ok {
-					none = false
-					updatedOrderbook[id] = false
-					//orderbooks[ActiveProduct].Render()
+		case <-second.C:
+			for _, name := range gdax.Products {
+				if ActiveProduct == name {
+					bookmaps[name].Render()
+				} else {
+					bookmaps[name].Progress()
 				}
 			}
-			if none {
-				continue
-			}
-		case <-second.C:
-			bookmap := bookmaps[ActiveProduct]
-			bookmap.Render()
-
 		case <-redrawChan:
 			//fmt.Println("forced redraw")
 		}
@@ -363,17 +308,8 @@ func main() {
 
 		program.Use()
 
-		/*
-			for _, orderbook := range orderbooks {
-				orderbook.Texture.Draw()
-			}
-		*/
-		for _, bookmap := range bookmaps {
-			bookmap.Texture.Draw()
-		}
-		for _, trade := range trades {
-			trade.Texture.Draw()
-		}
+		bookmaps[ActiveProduct].Texture.Draw()
+		trades[ActiveProduct].Texture.Draw()
 
 		window.SwapBuffers()
 		glfw.PollEvents()

@@ -112,7 +112,7 @@ type Client struct {
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.Books[name] = orderbook.NewProductBook(name)
-	c.Books[name].AlwaysSort = true
+	c.Books[name].AlwaysSort = false
 	c.ProductDB[name] = &ProductDB{Count: 0, Batch: []*BatchChunk{}}
 	if c.TradesUpdated != nil {
 		c.Books[name].TradesUpdated = c.TradesUpdated

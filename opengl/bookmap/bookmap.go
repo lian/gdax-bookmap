@@ -129,7 +129,31 @@ func (s *Bookmap) DrawString(x, y int, text string, color color.RGBA) {
 	font.DrawString(s.Image, x, y, text, color)
 }
 
+func (s *Bookmap) Progress() bool {
+	now := time.Now()
+
+	if s.Graph == nil {
+		graph := NewGraph(s.gdax.DB, s.Book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
+		if graph.SetStart(now) {
+			s.Graph = graph
+		}
+		return false
+	}
+
+	s.InitPriceScrollPosition()
+	s.DoAutoScroll()
+
+	return s.Graph.SetEnd(now)
+}
+
 func (s *Bookmap) Render() {
+	if !s.Progress() {
+		s.WriteTexture()
+		return
+	}
+
+	now := time.Now()
+
 	gc := draw2dimg.NewGraphicContext(s.Image)
 
 	bg1 := color.RGBA{0x15, 0x23, 0x2c, 0xff}
@@ -144,26 +168,6 @@ func (s *Bookmap) Render() {
 	draw2dkit.Rectangle(gc, 0, 0, s.Texture.Width, s.Texture.Height)
 	gc.Fill()
 
-	now := time.Now()
-
-	if s.Graph == nil {
-		graph := NewGraph(s.gdax.DB, s.Book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
-		if graph.SetStart(now) {
-			s.Graph = graph
-		}
-		s.WriteTexture()
-		return
-	}
-
-	s.InitPriceScrollPosition()
-	s.DoAutoScroll()
-	x := s.Texture.Width - 80
-
-	if !s.Graph.SetEnd(now) {
-		s.WriteTexture()
-		return
-	}
-
 	statsSlot := NewTimeSlot(s, now, now)
 	stats := s.Graph.Book.Book.StateAsStats()
 	statsSlot.Fill(stats)
@@ -172,6 +176,7 @@ func (s *Bookmap) Render() {
 		s.MaxSizeHisto = round(s.Graph.MaxHistoSize()*0.60, 0)
 	}
 
+	x := s.Texture.Width - 80
 	s.Graph.DrawTimeslots(gc, x, ((s.Texture.Height - s.RowHeight) / s.RowHeight), s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
 	s.Graph.DrawBidAskLines(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps)
 	s.Graph.DrawTradeDots(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
