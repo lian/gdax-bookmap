@@ -65,17 +65,15 @@ func (s *Trades) Render() {
 	timePadding := pricePadding + (font.Width * 12)
 	lineHeight := font.Height + 2
 
-	var latestPrice float64
-	i := len(book.Trades)
-	if i > 0 {
-		latestPrice = book.Trades[i-1].Price
-		font.DrawString(data, 10, 5, fmt.Sprintf("%s  %.2f", book.ID, latestPrice), fg1)
-	} else {
-		font.DrawString(data, 10, 5, book.ID, fg1)
-	}
+	font.DrawString(data, 10, 5, fmt.Sprintf("%s  %.2f", book.ID, book.LastPrice()), fg1)
 
 	limit := (int(s.Texture.Height) / lineHeight) - 3
-	tradesCount := len(book.Trades)
+
+	book.MuTrades.Lock()
+	trades := book.Trades
+	book.MuTrades.Unlock()
+
+	tradesCount := len(trades)
 	if tradesCount < limit {
 		limit = tradesCount
 	}
@@ -83,7 +81,7 @@ func (s *Trades) Render() {
 	x := 0
 	y := lineHeight * 2
 	for i := tradesCount - 1; i >= (tradesCount - limit); i-- {
-		trade := book.Trades[i]
+		trade := trades[i]
 
 		var fg color.Color
 		if trade.Side == orderbook.BidSide {

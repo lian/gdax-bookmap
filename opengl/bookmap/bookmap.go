@@ -51,7 +51,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 			Height: height,
 		},
 	}
-	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 10
+	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 50
 	if program != nil {
 		s.Texture.Setup(program)
 	}
@@ -61,7 +61,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 
 func (s *Bookmap) SetBook(book *orderbook.Book) {
 	s.Book = book
-	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 10
+	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 50
 	s.PriceScrollPosition = 0
 	s.MaxSizeHisto = 0
 	s.Graph.ProductID = book.ID

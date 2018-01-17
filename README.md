@@ -17,7 +17,7 @@ cd $GOPATH/src/github.com/lian/gdax-bookmap
 ## current controls
 
 ```
-1/2/3/4/5/6/7/8/9 selects BTC-USD, BTC-EUR, LTC--USD, ETH-USD, LTC-BTC, ETH-BTC, BCH-USD, BCH-BTC, BCH-EUR
+1/2/3/4/5/6/7 selects BTC-USD, BTC-EUR, LTC--USD, ETH-USD, LTC-BTC, ETH-BTC, BCH-USD
 q/esc to quit
 c center the graph to last price
 p enable auto center

@@ -3,6 +3,7 @@ package orderbook
 import (
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -99,6 +100,7 @@ type Book struct {
 	SkipStatsUpdate bool
 	AlwaysSort      bool
 	ProductInfo     ProductInfo
+	MuTrades        sync.Mutex
 }
 
 func New(id string) *Book {
@@ -463,6 +465,8 @@ func (b *Book) Match(data map[string]interface{}, change bool) {
 }
 
 func (b *Book) LastPrice() float64 {
+	b.MuTrades.Lock()
+	defer b.MuTrades.Unlock()
 	var lastPrice float64
 	i := len(b.Trades)
 	if i > 0 {
@@ -474,6 +478,7 @@ func (b *Book) LastPrice() float64 {
 }
 
 func (b *Book) AddTrade(match *Order) {
+	b.MuTrades.Lock()
 	//fmt.Println("trade", match)
 	if len(b.Trades) >= 50 {
 		// remove and free first item
@@ -482,6 +487,7 @@ func (b *Book) AddTrade(match *Order) {
 		b.Trades = b.Trades[:len(b.Trades)-1]
 	}
 	b.Trades = append(b.Trades, match)
+	b.MuTrades.Unlock()
 
 	if b.TradesUpdated != nil {
 		b.TradesUpdated <- b.ID
