@@ -61,6 +61,8 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		ActiveProduct = "LTC-BTC"
 	} else if key == glfw.Key7 && action == glfw.Press {
 		ActiveProduct = "BCH-USD"
+	} else if key == glfw.Key8 && action == glfw.Press {
+		ActiveProduct = "BCH-BTC"
 	} else if key == glfw.KeyS && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition += bm.PriceSteps
@@ -99,18 +101,14 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		if bm.PriceSteps >= float64(bm.Book.ProductInfo.BaseMaxSize) {
 			bm.PriceSteps = float64(bm.Book.ProductInfo.BaseMaxSize)
 		}
-		bm.PriceScrollPosition = 0
-		bm.InitPriceScrollPosition()
-		bm.Graph.ClearSlotRows()
+		bm.ForceAutoScroll()
 	} else if key == glfw.KeyUp && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceSteps = bm.PriceSteps / 2
 		if bm.PriceSteps <= float64(bm.Book.ProductInfo.QuoteIncrement) {
 			bm.PriceSteps = float64(bm.Book.ProductInfo.QuoteIncrement)
 		}
-		bm.PriceScrollPosition = 0
-		bm.InitPriceScrollPosition()
-		bm.Graph.ClearSlotRows()
+		bm.ForceAutoScroll()
 	} else if key == glfw.KeyLeft && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ColumnWidth -= 2
@@ -127,9 +125,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm.Graph.SlotWidth = int(bm.ColumnWidth)
 	} else if key == glfw.KeyC && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
-		bm.PriceScrollPosition = 0.0
-		bm.InitPriceScrollPosition()
-		bm.Graph.ClearSlotRows()
+		bm.ForceAutoScroll()
 	} else if key == glfw.KeyP && action == glfw.Press {
 		for _, bm := range bookmaps {
 			bm.AutoScroll = !bm.AutoScroll
@@ -255,7 +251,7 @@ func main() {
 
 	//bookUpdated := make(chan string, 1024)
 	//tradesUpdated := make(chan string)
-	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD"}, nil, nil)
+	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}, nil, nil)
 	go gdax.Run()
 
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}

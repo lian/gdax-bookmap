@@ -61,7 +61,7 @@ func (g *Graph) MaxHistoSize() float64 {
 
 func (g *Graph) ClearSlotRows() {
 	for _, slot := range g.Timeslots {
-		slot.Rows = make([]*TimeSlotRow, 0, len(slot.Rows))
+		slot.ClearRows()
 	}
 }
 

@@ -44,6 +44,7 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 		ColumnWidth:  4,
 		ViewportStep: 1,
 		ShowDebug:    true,
+		AutoScroll:   true,
 		Texture: &texture.Texture{
 			X:      x,
 			Y:      height + 10,
@@ -77,29 +78,7 @@ func round(k float64, precision int) float64 {
 	return f
 }
 
-func (s *Bookmap) InitPriceScrollPosition() {
-	if s.PriceScrollPosition != 0.0 {
-		return
-	}
-
-	if s.Graph == nil {
-		return
-	}
-
-	rowsCount := s.Texture.Height / s.RowHeight
-
-	centerPrice := s.Graph.Book.Book.CenterPrice()
-	if centerPrice != 0.0 {
-		//s.PriceScrollPosition = round(centerPrice, 0) + (float64(int(rowsCount/2)) * s.PriceSteps)
-		s.PriceScrollPosition = centerPrice + (float64(int(rowsCount/2)) * s.PriceSteps)
-	}
-}
-
-func (s *Bookmap) DoAutoScroll() {
-	if !s.AutoScroll {
-		return
-	}
-
+func (s *Bookmap) ForceAutoScroll() {
 	if s.Graph == nil {
 		return
 	}
@@ -116,6 +95,14 @@ func (s *Bookmap) DoAutoScroll() {
 			s.Graph.ClearSlotRows()
 		}
 	}
+}
+
+func (s *Bookmap) DoAutoScroll() {
+	if !s.AutoScroll {
+		return
+	}
+
+	s.ForceAutoScroll()
 }
 
 func (s *Bookmap) WriteTexture() {
@@ -140,7 +127,6 @@ func (s *Bookmap) Progress() bool {
 		return false
 	}
 
-	s.InitPriceScrollPosition()
 	s.DoAutoScroll()
 
 	return s.Graph.SetEnd(now)
@@ -168,17 +154,13 @@ func (s *Bookmap) Render() {
 	draw2dkit.Rectangle(gc, 0, 0, s.Texture.Width, s.Texture.Height)
 	gc.Fill()
 
-	statsSlot := NewTimeSlot(s, now, now)
-	stats := s.Graph.Book.Book.StateAsStats()
-	statsSlot.Fill(stats)
 	if s.MaxSizeHisto == 0 || s.AutoHistoSize {
-		//s.MaxSizeHisto = round(statsSlot.MaxSize/2, 0)
 		s.MaxSizeHisto = round(s.Graph.MaxHistoSize()*0.60, 0)
 	}
 
 	x := s.Texture.Width - 80
 	s.Graph.DrawTimeslots(gc, x, ((s.Texture.Height - s.RowHeight) / s.RowHeight), s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
-	s.Graph.DrawBidAskLines(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps)
+	s.Graph.DrawBidAskLines(s.Image, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps)
 	s.Graph.DrawTradeDots(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
 	s.Graph.DrawTimeline(gc, s.Image, x, s.Texture.Height-12.0)
 
@@ -187,34 +169,40 @@ func (s *Bookmap) Render() {
 	gc.SetStrokeColor(fg1)
 	gc.SetFillColor(fg1)
 	gc.MoveTo(x, 0)
-	//gc.LineTo(x, s.Texture.Height-s.RowHeight)
 	gc.LineTo(x, s.Texture.Height)
 	gc.Fill()
 
+	statsSlot := NewTimeSlot(s, now, now)
+	stats := s.Graph.Book.Book.StateAsStats()
+	statsSlot.Fill(stats)
+
+	var y float64
 	xx := float64(x + 2)
 	fontPad := int((s.RowHeight - font.Height) / 2.0)
 	for n, row := range statsSlot.Rows {
+		y = float64(n) * s.RowHeight
+
 		if math.Mod(float64(n), 3) == 0 {
-			s.DrawString(int(xx)-80, int(row.Y)+fontPad, s.Book.ProductInfo.FormatFloat(row.Heigh), fg1)
+			s.DrawString(int(xx)-80, int(y)+fontPad, s.Book.ProductInfo.FormatFloat(row.Heigh), fg1)
 		}
 
 		width := 80.0
-		//draw2dkit.Rectangle(gc, xx, row.Y+2, xx+width, row.Y+s.RowHeight-2)
+		//draw2dkit.Rectangle(gc, xx, y+2, xx+width, y+s.RowHeight-2)
 		//gc.SetFillColor(bg1)
 		//gc.Fill()
 
 		if row.Size > 0 {
 			if row.BidCount != 0 && row.AskCount != 0 {
 				width = 2 + (80 * (row.AskSize / (statsSlot.MaxSize + 10)))
-				y1 := row.Y + 1
-				y2 := row.Y + s.RowHeight/2
+				y1 := y + 1
+				y2 := y + s.RowHeight/2
 				draw2dkit.Rectangle(gc, xx, y1, xx+width, y2)
 				gc.SetFillColor(red)
 				gc.Fill()
 
 				width = 2 + (80 * (row.BidSize / (statsSlot.MaxSize + 10)))
 				y1 = y2 + 1
-				y2 = row.Y + s.RowHeight - 1
+				y2 = y + s.RowHeight - 1
 				draw2dkit.Rectangle(gc, xx, y1, xx+width, y2)
 				gc.SetFillColor(green)
 				gc.Fill()
@@ -226,15 +214,15 @@ func (s *Bookmap) Render() {
 				}
 
 				width = 2 + (80 * (row.Size / (statsSlot.MaxSize + 10)))
-				draw2dkit.Rectangle(gc, xx, row.Y+1, xx+width, row.Y+s.RowHeight-1)
+				draw2dkit.Rectangle(gc, xx, y+1, xx+width, y+s.RowHeight-1)
 				gc.Fill()
 			}
-			s.DrawString(int(xx)+4, int(row.Y)+fontPad, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
+			s.DrawString(int(xx)+4, int(y)+fontPad, fmt.Sprintf("%.2f (%d)", row.Size, row.OrderCount), fg1)
 		}
 
-		//gc.MoveTo(0, row.Y+s.RowHeight)
-		gc.MoveTo(xx, row.Y+s.RowHeight)
-		gc.LineTo(s.Texture.Width, row.Y+s.RowHeight)
+		//gc.MoveTo(0, y+s.RowHeight)
+		gc.MoveTo(xx, y+s.RowHeight)
+		gc.LineTo(s.Texture.Width, y+s.RowHeight)
 		gc.Stroke()
 	}
 

@@ -8,7 +8,6 @@ import (
 )
 
 type TimeSlotRow struct {
-	Y          float64
 	Low        float64
 	Heigh      float64
 	Size       float64
@@ -30,37 +29,24 @@ type TimeSlot struct {
 	BidTradeSize float64
 	AskTradeSize float64
 	Stats        *orderbook.BookMapStatsCopy
+	Cleared      bool
 }
 
 func NewNewTimeSlot(from time.Time, to time.Time) *TimeSlot {
 	v := &TimeSlot{
-		From: from,
-		To:   to,
-		Rows: []*TimeSlotRow{},
+		From:    from,
+		To:      to,
+		Rows:    []*TimeSlotRow{},
+		Cleared: true,
 	}
 	return v
 }
 
 func NewTimeSlot(bookmap *Bookmap, from time.Time, to time.Time) *TimeSlot {
+	v := NewNewTimeSlot(from, to)
+
 	rows := ((bookmap.Texture.Height - bookmap.RowHeight) / bookmap.RowHeight)
-	v := &TimeSlot{
-		From: from,
-		To:   to,
-		Rows: make([]*TimeSlotRow, 0, int(rows)),
-	}
-
-	for i := 0.0; i < rows; i++ {
-		y := i * bookmap.RowHeight
-
-		heigh := bookmap.PriceScrollPosition - (i * bookmap.PriceSteps)
-		low := heigh - bookmap.PriceSteps
-
-		v.Rows = append(v.Rows, &TimeSlotRow{
-			Y:     y,
-			Low:   low,
-			Heigh: heigh,
-		})
-	}
+	v.GenerateRows(rows, bookmap.PriceScrollPosition, bookmap.PriceSteps)
 
 	return v
 }
@@ -82,15 +68,31 @@ func (s *TimeSlot) FindRow(price float64) *TimeSlotRow {
 	}
 	return nil
 }
+func (s *TimeSlot) ClearRows() {
+	s.Cleared = true
+	//s.Rows = make([]*TimeSlotRow, 0)
+}
 
 func (s *TimeSlot) GenerateRows(count, priceOffset, steps float64) {
-	s.Rows = make([]*TimeSlotRow, 0, int(count))
+	if s.Cleared || len(s.Rows) != int(count) {
+		s.Cleared = false
 
-	for i := 0.0; i < count; i++ {
-		heigh := priceOffset - (i * steps)
-		low := heigh - steps
+		s.Rows = make([]*TimeSlotRow, int(count))
 
-		s.Rows = append(s.Rows, &TimeSlotRow{Low: low, Heigh: heigh})
+		for i := 0; i < int(count); i++ {
+			heigh := priceOffset - (float64(i) * steps)
+			low := heigh - steps
+
+			s.Rows[i] = &TimeSlotRow{Low: low, Heigh: heigh}
+		}
+	} else {
+		for i := 0; i < int(count); i++ {
+			heigh := priceOffset - (float64(i) * steps)
+			low := heigh - steps
+
+			s.Rows[i].Low = low
+			s.Rows[i].Heigh = heigh
+		}
 	}
 }
 
@@ -115,11 +117,20 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 	s.AskTradeSize = 0.0
 	s.BidTradeSize = 0.0
 
+	high := s.Rows[0].Heigh
+	low := s.Rows[len(s.Rows)-1].Low
+
 	for i := len(stats.Bid) - 1; i >= 0; i-- {
 		state := stats.Bid[i]
+
+		if state.Price > high || state.Price <= low {
+			continue
+		}
+
 		row := s.FindRow(state.Price)
 
 		if row == nil {
+			//fmt.Println("bid row not found for price", state.Price, low, high)
 			continue
 		}
 
@@ -147,9 +158,14 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 	}
 
 	for _, state := range stats.Ask {
+		if state.Price > high || state.Price <= low {
+			continue
+		}
+
 		row := s.FindRow(state.Price)
 
 		if row == nil {
+			//fmt.Println("ask row not found for price", state.Price, low, high)
 			continue
 		}
 
