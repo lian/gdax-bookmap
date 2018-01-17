@@ -12,7 +12,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
 
-	"github.com/lian/gdax-bookmap/orderbook"
+	"github.com/lian/gdax-bookmap/gdax/orderbook"
 )
 
 const TimeFormat = "2006-01-02T15:04:05.999999Z07:00"
@@ -43,25 +43,19 @@ func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
 		ProductDB:     map[string]*ProductDB{},
+		dbEnabled:     true,
 	}
 
 	for _, name := range products {
 		c.AddProduct(name)
 	}
 
-	path := "gdax_orderbooks.db"
+	path := "orderbooks.db"
 	if os.Getenv("GDAX_DB_PATH") != "" {
 		path = os.Getenv("GDAX_DB_PATH")
 	}
 
-	if os.Getenv("GDAX_DB_READONLY") != "" {
-		c.dbEnabled = false
-	} else {
-		c.dbEnabled = true
-	}
-	readonly := !c.dbEnabled
-
-	c.DB = OpenDB(path, products, readonly)
+	c.DB = OpenDB(path, products, false)
 
 	return c
 }

@@ -117,6 +117,16 @@ func New(id string) *Book {
 	return b
 }
 
+func NewProductBook(id string) *Book {
+	b := New(id)
+	b.InitProductInfo()
+	return b
+}
+
+func (b *Book) InitProductInfo() {
+	b.ProductInfo = FetchProductInfo(b.ID)
+}
+
 // TODO: improve. prolly memory/gc hungy
 func (b *Book) StatsCopy() *BookMapStatsCopy {
 	b.Stats.Sort()

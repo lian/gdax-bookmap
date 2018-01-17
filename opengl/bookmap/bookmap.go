@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/boltdb/bolt"
+	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	font "github.com/lian/gonky/font/terminus"
 
-	"github.com/lian/gdax-bookmap/orderbook"
-	"github.com/lian/gdax-bookmap/websocket"
 	"github.com/lian/gonky/shader"
 	"github.com/lian/gonky/texture"
 	"github.com/llgcode/draw2d/draw2dimg"
@@ -19,13 +19,14 @@ import (
 )
 
 type Bookmap struct {
+	ID                  string
+	ProductInfo         product_info.Info
 	Texture             *texture.Texture
 	PriceScrollPosition float64
 	PriceSteps          float64 // zoom
 	MaxSizeHisto        float64
 	RowHeight           float64
-	Book                *orderbook.Book
-	gdax                *websocket.Client
+	DB                  *bolt.DB
 	ColumnWidth         float64
 	ViewportStep        int
 	Graph               *Graph
@@ -36,10 +37,11 @@ type Bookmap struct {
 	AutoScroll          bool
 }
 
-func New(program *shader.Program, width, height float64, x float64, book *orderbook.Book, gdax *websocket.Client) *Bookmap {
+func New(program *shader.Program, width, height float64, x float64, info product_info.Info, db *bolt.DB) *Bookmap {
 	s := &Bookmap{
-		Book:         book,
-		gdax:         gdax,
+		ID:           info.ID,
+		ProductInfo:  info,
+		DB:           db,
 		RowHeight:    14,
 		ColumnWidth:  4,
 		ViewportStep: 1,
@@ -52,22 +54,13 @@ func New(program *shader.Program, width, height float64, x float64, book *orderb
 			Height: height,
 		},
 	}
-	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 50
+
+	s.PriceSteps = float64(s.ProductInfo.QuoteIncrement) * 50
 	if program != nil {
 		s.Texture.Setup(program)
 	}
 	s.Image = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
 	return s
-}
-
-func (s *Bookmap) SetBook(book *orderbook.Book) {
-	s.Book = book
-	s.PriceSteps = float64(s.Book.ProductInfo.QuoteIncrement) * 50
-	s.PriceScrollPosition = 0
-	s.MaxSizeHisto = 0
-	s.Graph.ProductID = book.ID
-	start := s.Graph.CurrentTime.Add(time.Duration((s.Graph.SlotSteps*s.Graph.SlotCount)*-1) * time.Second)
-	s.Graph.SetStart(start)
 }
 
 // ugly af
@@ -120,7 +113,7 @@ func (s *Bookmap) Progress() bool {
 	now := time.Now()
 
 	if s.Graph == nil {
-		graph := NewGraph(s.gdax.DB, s.Book.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
+		graph := NewGraph(s.DB, s.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
 		if graph.SetStart(now) {
 			s.Graph = graph
 		}
@@ -183,7 +176,7 @@ func (s *Bookmap) Render() {
 		y = float64(n) * s.RowHeight
 
 		if math.Mod(float64(n), 3) == 0 {
-			s.DrawString(int(xx)-80, int(y)+fontPad, s.Book.ProductInfo.FormatFloat(row.Heigh), fg1)
+			s.DrawString(int(xx)-80, int(y)+fontPad, s.ProductInfo.FormatFloat(row.Heigh), fg1)
 		}
 
 		width := 80.0
@@ -227,7 +220,7 @@ func (s *Bookmap) Render() {
 	}
 
 	s.RenderDebug(now)
-	s.DrawString(10, 5, fmt.Sprintf("%s %s", s.Book.ID, s.Book.ProductInfo.FormatFloat(s.Graph.Book.Book.LastPrice())), fg1)
+	s.DrawString(10, 5, fmt.Sprintf("%s %s", s.ID, s.ProductInfo.FormatFloat(s.Graph.Book.Book.LastPrice())), fg1)
 
 	s.WriteTexture()
 }
@@ -241,9 +234,9 @@ func (s *Bookmap) RenderDebug(now time.Time) {
 
 	s.DrawString(10, 25, fmt.Sprintf(
 		"%s PriceScrollPos %s PriceSteps %s MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d",
-		s.Book.ID,
-		s.Book.ProductInfo.FormatFloat(s.PriceScrollPosition),
-		s.Book.ProductInfo.FormatFloat(s.PriceSteps),
+		s.ID,
+		s.ProductInfo.FormatFloat(s.PriceScrollPosition),
+		s.ProductInfo.FormatFloat(s.PriceSteps),
 		s.MaxSizeHisto,
 		s.ColumnWidth,
 		s.ViewportStep,

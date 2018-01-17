@@ -5,8 +5,9 @@ import (
 	"image"
 	"image/color"
 
+	"github.com/lian/gdax-bookmap/opengl/bookmap"
 	"github.com/lian/gdax-bookmap/orderbook"
-	"github.com/lian/gdax-bookmap/websocket"
+	"github.com/lian/gdax-bookmap/orderbook/product_info"
 
 	font "github.com/lian/gonky/font/terminus"
 
@@ -17,20 +18,22 @@ import (
 )
 
 type Trades struct {
-	ID      string
-	Texture *texture.Texture
-	gdax    *websocket.Client
-	Image   *image.RGBA
+	ProductInfo product_info.Info
+	ID          string
+	Texture     *texture.Texture
+	bookmap     *bookmap.Bookmap
+	Image       *image.RGBA
 }
 
-func New(program *shader.Program, gdax *websocket.Client, id string, height float64, x float64) *Trades {
+func New(program *shader.Program, bookmap *bookmap.Bookmap, info product_info.Info, height float64, x float64) *Trades {
 	sizePadding := font.Width * 15
 	pricePadding := sizePadding + (font.Width * 12)
 	timePadding := pricePadding + (font.Width * 12)
 	width := timePadding + 20
 	s := &Trades{
-		ID:   id,
-		gdax: gdax,
+		ID:          info.ID,
+		ProductInfo: info,
+		bookmap:     bookmap,
 		Texture: &texture.Texture{
 			X:      x,
 			Y:      height + 10,
@@ -58,7 +61,10 @@ func (s *Trades) Render() {
 	draw2dkit.Rectangle(gc, 0, 0, s.Texture.Width, s.Texture.Height)
 	gc.Fill()
 
-	book := s.gdax.Books[s.ID]
+	if s.bookmap.Graph == nil {
+		return
+	}
+	book := s.bookmap.Graph.Book.Book
 
 	sizePadding := font.Width * 15
 	pricePadding := sizePadding + (font.Width * 12)
@@ -94,7 +100,7 @@ func (s *Trades) Render() {
 		cx := x + (sizePadding - (len(size) * font.Width))
 		font.DrawString(data, cx, y, size, fg1)
 
-		price := book.ProductInfo.FormatFloat(trade.Price)
+		price := s.ProductInfo.FormatFloat(trade.Price)
 		cx = x + (pricePadding - (len(price) * font.Width))
 		font.DrawString(data, cx, y, price, fg)
 

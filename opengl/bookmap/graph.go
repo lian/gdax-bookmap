@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/lian/gdax-bookmap/gdax/websocket"
 	"github.com/lian/gdax-bookmap/orderbook"
-	"github.com/lian/gdax-bookmap/websocket"
 )
 
 type Graph struct {
@@ -45,6 +45,7 @@ func NewGraph(db *bolt.DB, productID string, width, slotWidth, slotSteps int) *G
 		Green:     color.RGBA{0x84, 0xf7, 0x66, 0xff},
 		Bg1:       color.RGBA{0x15, 0x23, 0x2c, 0xff},
 		Fg1:       color.RGBA{0xdd, 0xdf, 0xe1, 0xff},
+		Book:      orderbook.NewDbBook(productID),
 	}
 	return g
 }

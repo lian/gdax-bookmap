@@ -11,13 +11,11 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.2/glfw"
 	"github.com/go-gl/mathgl/mgl32"
-
-	"github.com/lian/gdax-bookmap/websocket"
-
 	"github.com/lian/gonky/shader"
 
 	//_ "net/http/pprof"
 
+	gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
 	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
 	opengl_trades "github.com/lian/gdax-bookmap/opengl/trades"
 )
@@ -98,15 +96,15 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 	} else if key == glfw.KeyDown && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceSteps = bm.PriceSteps * 2
-		if bm.PriceSteps >= float64(bm.Book.ProductInfo.BaseMaxSize) {
-			bm.PriceSteps = float64(bm.Book.ProductInfo.BaseMaxSize)
+		if bm.PriceSteps >= float64(bm.ProductInfo.BaseMaxSize) {
+			bm.PriceSteps = float64(bm.ProductInfo.BaseMaxSize)
 		}
 		bm.ForceAutoScroll()
 	} else if key == glfw.KeyUp && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceSteps = bm.PriceSteps / 2
-		if bm.PriceSteps <= float64(bm.Book.ProductInfo.QuoteIncrement) {
-			bm.PriceSteps = float64(bm.Book.ProductInfo.QuoteIncrement)
+		if bm.PriceSteps <= float64(bm.ProductInfo.QuoteIncrement) {
+			bm.PriceSteps = float64(bm.ProductInfo.QuoteIncrement)
 		}
 		bm.ForceAutoScroll()
 	} else if key == glfw.KeyLeft && action == glfw.Press {
@@ -192,7 +190,6 @@ var WindowHeight int = 720
 var program *shader.Program
 var trades map[string]*opengl_trades.Trades
 var bookmaps map[string]*opengl_bookmap.Bookmap
-var gdax *websocket.Client
 
 func main() {
 	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
@@ -251,7 +248,7 @@ func main() {
 
 	//bookUpdated := make(chan string, 1024)
 	//tradesUpdated := make(chan string)
-	gdax = websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}, nil, nil)
+	gdax := gdax_websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}, nil, nil)
 	go gdax.Run()
 
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
@@ -259,18 +256,16 @@ func main() {
 
 	padding := 10.0
 	x := padding
-	updatedOrderbook := map[string]bool{}
 	for _, name := range gdax.Products {
-		bookmaps[name] = opengl_bookmap.New(program, 1000, 700, x, gdax.Books[name], gdax)
+		info := gdax.Books[name].ProductInfo
+		bookmaps[name] = opengl_bookmap.New(program, 1000, 700, x, info, gdax.DB)
 	}
 	x += bookmaps[ActiveProduct].Texture.Width + padding
 	for _, name := range gdax.Products {
-		trades[name] = opengl_trades.New(program, gdax, name, 700, x)
+		info := gdax.Books[name].ProductInfo
+		trades[name] = opengl_trades.New(program, bookmaps[name], info, 700, x)
 	}
 	x += trades[ActiveProduct].Texture.Width + padding
-	for _, name := range gdax.Products {
-		updatedOrderbook[name] = true
-	}
 
 	// Configure global settings
 	gl.Enable(gl.DEPTH_TEST)

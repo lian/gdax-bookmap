@@ -1,4 +1,4 @@
-gdax-bookmap-*
+gdax-bookmap-linux
 debug
 *.db
 scripts/builds
