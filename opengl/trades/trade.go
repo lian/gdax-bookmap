@@ -75,9 +75,9 @@ func (s *Trades) Render() {
 
 	limit := (int(s.Texture.Height) / lineHeight) - 3
 
-	book.MuTrades.Lock()
+	//book.MuTrades.Lock() // TODO re-enable
 	trades := book.Trades
-	book.MuTrades.Unlock()
+	//book.MuTrades.Unlock()
 
 	tradesCount := len(trades)
 	if tradesCount < limit {

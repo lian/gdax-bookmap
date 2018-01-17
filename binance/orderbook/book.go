@@ -12,17 +12,10 @@ type BookLevel struct {
 	Quantity float64
 }
 
-type Side uint8
-
-const BidSide Side = 0
-const AskSide Side = 1
-
 type Trade struct {
 	Price    float64
 	Quantity float64
-	Size     float64 // TODO remove
 	Time     time.Time
-	Side     Side
 }
 
 type BookLevelList []*BookLevel
@@ -51,6 +44,16 @@ func New(name string) *Book {
 		Ask:    []*BookLevel{},
 		Trades: []*Trade{},
 	}
+}
+
+func NewProductBook(id string) *Book {
+	b := New(id)
+	b.InitProductInfo()
+	return b
+}
+
+func (b *Book) InitProductInfo() {
+	b.ProductInfo = FetchProductInfo(b.ID)
 }
 
 func (b *Book) UpdateBidLevel(t time.Time, price, quantity float64) {
@@ -115,16 +118,13 @@ func (b *Book) AddTrade(t time.Time, price, quantity float64) {
 		b.Trades[len(b.Trades)-1] = nil
 		b.Trades = b.Trades[:len(b.Trades)-1]
 	}
-	trade := &Trade{Price: price, Quantity: quantity, Size: quantity, Time: t}
-	b.Trades = append(b.Trades, trade)
+	b.Trades = append(b.Trades, &Trade{Price: price, Quantity: quantity, Time: t})
 
 	if b.Stats != nil {
-		var side Side
 		var found bool
 		for _, state := range b.Stats.Bid {
 			if state.Price == price {
 				state.TradeSize += quantity
-				side = BidSide
 				found = true
 				break
 			}
@@ -133,12 +133,10 @@ func (b *Book) AddTrade(t time.Time, price, quantity float64) {
 			for _, state := range b.Stats.Ask {
 				if state.Price == price {
 					state.TradeSize += quantity
-					side = AskSide
 					break
 				}
 			}
 		}
-		trade.Side = side
 	}
 }
 

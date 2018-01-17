@@ -15,7 +15,8 @@ import (
 
 	//_ "net/http/pprof"
 
-	gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
+	//gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
+	binance_websocket "github.com/lian/gdax-bookmap/binance/websocket"
 	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
 	opengl_trades "github.com/lian/gdax-bookmap/opengl/trades"
 )
@@ -24,8 +25,6 @@ var (
 	AppVersion = "unknown"
 	AppGitHash = "unknown"
 )
-
-var ActiveProduct string = "BTC-USD"
 
 func init() {
 	runtime.LockOSThread()
@@ -191,9 +190,11 @@ var program *shader.Program
 var trades map[string]*opengl_trades.Trades
 var bookmaps map[string]*opengl_bookmap.Bookmap
 
+var ActiveProduct string
+
 func main() {
 	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
-	flag.StringVar(&ActiveProduct, "pair", "BTC-USD", "gdax Product ID")
+	flag.StringVar(&ActiveProduct, "pair", "BTC-USDT", "gdax Product ID")
 	flag.Parse()
 
 	/*
@@ -248,7 +249,8 @@ func main() {
 
 	//bookUpdated := make(chan string, 1024)
 	//tradesUpdated := make(chan string)
-	gdax := gdax_websocket.New([]string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}, nil, nil)
+	//gdax := gdax_websocket.New(nil, nil)
+	gdax := binance_websocket.New(nil, nil)
 	go gdax.Run()
 
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
@@ -257,12 +259,12 @@ func main() {
 	padding := 10.0
 	x := padding
 	for _, name := range gdax.Products {
-		info := gdax.Books[name].ProductInfo
+		info := gdax.GetBook(name).ProductInfo
 		bookmaps[name] = opengl_bookmap.New(program, 1000, 700, x, info, gdax.DB)
 	}
 	x += bookmaps[ActiveProduct].Texture.Width + padding
 	for _, name := range gdax.Products {
-		info := gdax.Books[name].ProductInfo
+		info := gdax.GetBook(name).ProductInfo
 		trades[name] = opengl_trades.New(program, bookmaps[name], info, 700, x)
 	}
 	x += trades[ActiveProduct].Texture.Width + padding

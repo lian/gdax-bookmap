@@ -153,8 +153,8 @@ func (s *Bookmap) Render() {
 
 	x := s.Texture.Width - 80
 	s.Graph.DrawTimeslots(gc, x, ((s.Texture.Height - s.RowHeight) / s.RowHeight), s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
-	s.Graph.DrawBidAskLines(s.Image, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps)
 	s.Graph.DrawTradeDots(gc, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps, s.MaxSizeHisto)
+	s.Graph.DrawBidAskLines(s.Image, x, s.RowHeight, s.PriceScrollPosition, s.PriceSteps)
 	s.Graph.DrawTimeline(gc, s.Image, x, s.Texture.Height-12.0)
 
 	// draw current (statsSlot) volume slot

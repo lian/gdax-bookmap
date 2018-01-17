@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/lian/gdax-bookmap/gdax/websocket"
+	"github.com/lian/gdax-bookmap/binance/websocket"
 	"github.com/lian/gdax-bookmap/orderbook"
 )
 
@@ -170,6 +170,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 
 	jumpNext := false
 	nextSequence := g.Book.Book.Sequence + 1
+	var isTrade bool
 
 	g.DB.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket([]byte(g.ProductID)).Cursor()
@@ -181,8 +182,11 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				break
 			}
 
+			isTrade = false
 			seq := websocket.UnpackSequence(buf)
-			if seq != nextSequence {
+			if seq == 0 {
+				isTrade = true
+			} else if seq != nextSequence {
 				fmt.Println("graph out of sequence", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
 				pkt := websocket.UnpackPacket(buf)
 				if pkt["type"].(string) == "sync" {
@@ -193,8 +197,9 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 					more = true
 				}
 				g.LastProcessedKey = []byte(string(key))
-				jumpNext = true
-				break
+				// TODO re-enable booth again and fix it
+				//jumpNext = true
+				//break
 			}
 
 			if websocket.UnpackTimeKey(key).After(curSlotEnd) {
@@ -206,7 +211,9 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 			} else {
 				//fmt.Println("in sequence process", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
 				g.Book.Process(websocket.UnpackPacket(buf))
-				nextSequence = g.Book.Book.Sequence + 1
+				if !isTrade {
+					nextSequence = g.Book.Book.Sequence + 1
+				}
 				g.LastProcessedKey = []byte(string(key))
 			}
 		}
@@ -247,7 +254,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 
 		first := true
 		var key, buf []byte
-		for key, buf = c.Seek(startKey); !bytes.HasPrefix(buf, []byte("\x04")); key, buf = c.Prev() {
+		for key, buf = c.Seek(startKey); !bytes.HasPrefix(buf, []byte("\x00")); key, buf = c.Prev() {
 			if first == false && key == nil {
 				err = errors.New(fmt.Sprintf("FetchBook %s no sync key found", g.ProductID))
 				return nil

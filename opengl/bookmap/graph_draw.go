@@ -50,10 +50,10 @@ func (g *Graph) DrawTradeDots(gc *draw2dimg.GraphicContext, x, rowHeight, priceP
 			continue
 		}
 
-		y = ((pricePosition - slot.AskPrice) / priceSteps) * rowHeight
 		xx = (x + (float64(g.SlotWidth) / 2))
 
 		if slot.AskTradeSize != 0 {
+			y = ((pricePosition - slot.AskPrice) / priceSteps) * rowHeight
 			t := (slot.AskTradeSize / (maxSizeHisto * 0.8))
 			if t > 1.0 {
 				t = 1.0
@@ -63,6 +63,7 @@ func (g *Graph) DrawTradeDots(gc *draw2dimg.GraphicContext, x, rowHeight, priceP
 		}
 
 		if slot.BidTradeSize != 0 {
+			y = ((pricePosition - slot.BidPrice) / priceSteps) * rowHeight
 			t := (slot.BidTradeSize / (maxSizeHisto * 0.8))
 			if t > 1.0 {
 				t = 1.0

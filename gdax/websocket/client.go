@@ -36,7 +36,7 @@ func OpenDB(path string, buckets []string, readOnly bool) *bolt.DB {
 	return db
 }
 
-func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
+func New(bookUpdated, tradesUpdated chan string) *Client {
 	c := &Client{
 		BookUpdated:   bookUpdated,
 		TradesUpdated: tradesUpdated,
@@ -46,18 +46,26 @@ func New(products []string, bookUpdated, tradesUpdated chan string) *Client {
 		dbEnabled:     true,
 	}
 
+	products := []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}
+
 	for _, name := range products {
 		c.AddProduct(name)
 	}
 
 	path := "orderbooks.db"
-	if os.Getenv("GDAX_DB_PATH") != "" {
-		path = os.Getenv("GDAX_DB_PATH")
+	if os.Getenv("DB_PATH") != "" {
+		path = os.Getenv("DB_PATH")
 	}
 
-	c.DB = OpenDB(path, products, false)
+	if c.dbEnabled {
+		c.DB = OpenDB(path, products, false)
+	}
 
 	return c
+}
+
+func (c *Client) GetBook(id string) *orderbook.Book {
+	return c.Books[id]
 }
 
 type BatchChunk struct {
