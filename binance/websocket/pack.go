@@ -121,6 +121,8 @@ func UnpackPacket(data []byte) map[string]interface{} {
 	case TradePacket:
 		var sequence uint64
 		binary.Read(buf, binary.LittleEndian, &sequence)
+		var side uint8
+		binary.Read(buf, binary.LittleEndian, &side)
 		var price float64
 		binary.Read(buf, binary.LittleEndian, &price)
 		var size float64
@@ -128,6 +130,7 @@ func UnpackPacket(data []byte) map[string]interface{} {
 		return map[string]interface{}{
 			"type":     "trade",
 			"sequence": sequence,
+			"side":     side,
 			"price":    price,
 			"size":     size,
 		}
@@ -185,10 +188,11 @@ func PackDiff(update *PacketDepthUpdate) []byte {
 	return buf.Bytes()
 }
 
-func PackTrade(price, quantity float64) []byte {
+func PackTrade(side uint8, price, quantity float64) []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, TradePacket)
 	binary.Write(buf, binary.LittleEndian, uint64(0)) // seq
+	binary.Write(buf, binary.LittleEndian, side)      // side
 	binary.Write(buf, binary.LittleEndian, price)     // price
 	binary.Write(buf, binary.LittleEndian, quantity)  // size
 	return buf.Bytes()

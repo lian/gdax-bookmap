@@ -13,7 +13,7 @@ import (
 )
 
 func (c *Client) SyncBook(book *orderbook.Book) error {
-	fmt.Println("sync", book.Name)
+	fmt.Println("sync", book.ID)
 
 	url := fmt.Sprintf("https://www.binance.com/api/v1/depth?symbol=%s&limit=1000", strings.ToUpper(book.ProductInfo.ID))
 	res, err := http.Get(url)
@@ -54,8 +54,6 @@ func (c *Client) SyncBook(book *orderbook.Book) error {
 				book.UpdateAskLevel(t, price, quantity)
 			}
 		}
-
-		book.Sort()
 
 		if c.dbEnabled {
 			now := time.Now()

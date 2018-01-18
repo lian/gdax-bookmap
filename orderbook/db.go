@@ -62,7 +62,7 @@ func (b *DbBook) applyLevels(data map[string]interface{}) {
 	}
 }
 
-func (b *DbBook) Process(data map[string]interface{}) bool {
+func (b *DbBook) Process(t time.Time, data map[string]interface{}) bool {
 	book := b.Book
 	sequence := data["sequence"].(uint64)
 
@@ -84,8 +84,7 @@ func (b *DbBook) Process(data map[string]interface{}) bool {
 		book.Sort()
 
 	case "trade":
-		t := time.Now()
-		book.AddTrade(t, data["price"].(float64), data["size"].(float64))
+		book.AddTrade(t, data["side"].(uint8), data["price"].(float64), data["size"].(float64))
 
 	default:
 		fmt.Println("unkown DbBook.Process pkt")

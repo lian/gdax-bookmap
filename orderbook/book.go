@@ -53,6 +53,20 @@ func New(name string) *Book {
 	}
 }
 
+func (b *Book) GetSide(price float64) uint8 {
+	for _, level := range b.Bid {
+		if level.Price == price {
+			return uint8(BidSide)
+		}
+	}
+	for _, level := range b.Ask {
+		if level.Price == price {
+			return uint8(AskSide)
+		}
+	}
+	return uint8(BidSide)
+}
+
 func (b *Book) UpdateBidLevel(t time.Time, price, quantity float64) {
 	var found bool
 
@@ -108,37 +122,32 @@ func (b *Book) Sort() {
 	sort.Sort(b.Ask)
 }
 
-func (b *Book) AddTrade(t time.Time, price, quantity float64) {
+func (b *Book) AddTrade(t time.Time, side uint8, price, quantity float64) {
 	if len(b.Trades) >= 50 {
 		// remove and free first item
 		copy(b.Trades[0:], b.Trades[1:])
 		b.Trades[len(b.Trades)-1] = nil
 		b.Trades = b.Trades[:len(b.Trades)-1]
 	}
-	trade := &Trade{Price: price, Quantity: quantity, Size: quantity, Time: t}
+	trade := &Trade{Price: price, Side: Side(side), Quantity: quantity, Size: quantity, Time: t}
 	b.Trades = append(b.Trades, trade)
 
 	if b.Stats != nil {
-		var side Side
-		var found bool
-		for _, state := range b.Stats.Bid {
-			if state.Price == price {
-				state.TradeSize += quantity
-				side = BidSide
-				found = true
-				break
+		if trade.Side == BidSide {
+			for _, state := range b.Stats.Bid {
+				if state.Price == price {
+					state.TradeSize += quantity
+					break
+				}
 			}
-		}
-		if !found {
+		} else {
 			for _, state := range b.Stats.Ask {
 				if state.Price == price {
 					state.TradeSize += quantity
-					side = AskSide
 					break
 				}
 			}
 		}
-		trade.Side = side
 	}
 }
 

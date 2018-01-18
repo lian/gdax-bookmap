@@ -182,6 +182,8 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				break
 			}
 
+			t := websocket.UnpackTimeKey(key)
+
 			isTrade = false
 			seq := websocket.UnpackSequence(buf)
 			if seq == 0 {
@@ -191,7 +193,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				pkt := websocket.UnpackPacket(buf)
 				if pkt["type"].(string) == "sync" {
 					fmt.Println("found sync packet", seq, nextSequence)
-					g.Book.Process(pkt)
+					g.Book.Process(t, pkt)
 				} else {
 					fmt.Println("no sync packet. continue search", seq, nextSequence)
 					more = true
@@ -202,15 +204,15 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				//break
 			}
 
-			if websocket.UnpackTimeKey(key).After(curSlotEnd) {
+			if t.After(curSlotEnd) {
 				//fmt.Println("in sequence defer", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
 				more = true
 				jumpNext = true
-				g.CurrentTime = websocket.UnpackTimeKey(key)
+				g.CurrentTime = t
 				break
 			} else {
 				//fmt.Println("in sequence process", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
-				g.Book.Process(websocket.UnpackPacket(buf))
+				g.Book.Process(t, websocket.UnpackPacket(buf))
 				if !isTrade {
 					nextSequence = g.Book.Book.Sequence + 1
 				}
@@ -264,7 +266,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 
 		// apply sync packet
 		pkt := websocket.UnpackPacket(buf)
-		book.Process(pkt)
+		book.Process(websocket.UnpackTimeKey(key), pkt)
 		g.LastProcessedKey = []byte(string(key))
 
 		// walk and fill book until startKey
@@ -272,7 +274,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 			if bytes.Compare(key, startKey) < 0 {
 				startKey = key
 				pkt := websocket.UnpackPacket(buf)
-				book.Process(pkt)
+				book.Process(websocket.UnpackTimeKey(key), pkt)
 				g.LastProcessedKey = []byte(string(key))
 			} else {
 				break

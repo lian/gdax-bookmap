@@ -65,7 +65,7 @@ func streamNames(name string) (string, string) {
 
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
-	book := orderbook.NewProductBook(name)
+	book := orderbook.New(name)
 	info := orderbook.FetchProductInfo(name)
 	a, b := streamNames(strings.ToLower(info.ID))
 	c.Books[a] = book
@@ -118,14 +118,14 @@ type PacketAggTrade struct {
 	//EventType        string `json:"e"`
 	//EventTime        int    `json:"E"`
 	//Symbol           string `json:"s"`
-	AggregateTradeID int    `json:"a"`
-	Price            string `json:"p"`
-	Quantity         string `json:"q"`
-	FirstUpdateID    int    `json:"f"`
-	FinalUpdateID    int    `json:"l"`
-	TradeTime        int    `json:"T"`
-	BuyMaker         bool   `json:"m"`
-	Ignore           bool   `json:"M"`
+	//AggregateTradeID int    `json:"a"`
+	//TradeTime        int    `json:"T"`
+	Price         string `json:"p"`
+	Quantity      string `json:"q"`
+	FirstUpdateID int    `json:"f"`
+	FinalUpdateID int    `json:"l"`
+	BuyMaker      bool   `json:"m"`
+	Ignore        bool   `json:"M"`
 }
 
 func (c *Client) UpdateSync(book *orderbook.Book, first, last uint64) error {
@@ -213,8 +213,6 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 			book.UpdateAskLevel(eventTime, price, quantity)
 		}
 
-		book.Sort()
-
 		if c.dbEnabled {
 			now := time.Now()
 			if time.Since(c.LastSync) > (time.Minute * 1) {
@@ -239,16 +237,17 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 		price, _ := strconv.ParseFloat(trade.Price, 64)
 		quantity, _ := strconv.ParseFloat(trade.Quantity, 64)
 
-		book.AddTrade(eventTime, price, quantity)
+		side := book.GetSide(price)
+		book.AddTrade(eventTime, side, price, quantity)
 
 		if c.dbEnabled {
 			now := time.Now()
-			c.WriteDB(now, book, PackTrade(price, quantity))
+			c.WriteDB(now, book, PackTrade(side, price, quantity))
 		}
 
 		//fmt.Println(book.Name, "TRADE", t, trade)
 	default:
-		fmt.Println("unkown event", book.Name, event.EventType, string(raw))
+		fmt.Println("unkown event", book.ID, event.EventType, string(raw))
 		return
 	}
 }
