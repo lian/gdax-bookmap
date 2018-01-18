@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/lian/gdax-bookmap/binance/orderbook"
 )
@@ -15,16 +14,6 @@ const (
 	DiffPacket  uint8 = iota
 	TradePacket uint8 = iota
 )
-
-func UnpackTimeKey(key []byte) time.Time {
-	i, _ := strconv.ParseInt(string(key), 10, 64)
-	t := time.Unix(0, i)
-	return t
-}
-
-func PackTimeKey(t time.Time) []byte {
-	return []byte(fmt.Sprintf("%d", t.UnixNano()))
-}
 
 func PackUnixNanoKey(nano int64) []byte {
 	return []byte(fmt.Sprintf("%d", nano))

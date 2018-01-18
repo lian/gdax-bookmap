@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"strconv"
 	"time"
@@ -15,25 +14,18 @@ import (
 	"github.com/lian/gdax-bookmap/gdax/orderbook"
 )
 
-const TimeFormat = "2006-01-02T15:04:05.999999Z07:00"
-
-func OpenDB(path string, buckets []string, readOnly bool) *bolt.DB {
-	db, err := bolt.Open(path, 0600, &bolt.Options{ReadOnly: readOnly})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	db.Update(func(tx *bolt.Tx) error {
-		for _, name := range buckets {
-			_, err := tx.CreateBucketIfNotExists([]byte(name))
-			if err != nil {
-				return fmt.Errorf("create bucket: %s %s", name, err)
-			}
-		}
-		return nil
-	})
-
-	return db
+type Client struct {
+	BookUpdated   chan string
+	TradesUpdated chan string
+	Products      []string
+	Books         map[string]*orderbook.Book
+	Socket        *websocket.Conn
+	DB            *bolt.DB
+	dbEnabled     bool
+	LastSync      time.Time
+	LastDiff      time.Time
+	LastDiffSeq   uint64
+	BatchWrite    map[string]*BookBatchWrite
 }
 
 func New(bookUpdated, tradesUpdated chan string) *Client {
@@ -42,11 +34,12 @@ func New(bookUpdated, tradesUpdated chan string) *Client {
 		TradesUpdated: tradesUpdated,
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
-		ProductDB:     map[string]*ProductDB{},
 		dbEnabled:     true,
+		BatchWrite:    map[string]*BookBatchWrite{},
 	}
 
 	products := []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}
+	//products := []string{"BTC-USD"}
 
 	for _, name := range products {
 		c.AddProduct(name)
@@ -68,54 +61,10 @@ func (c *Client) GetBook(id string) *orderbook.Book {
 	return c.Books[id]
 }
 
-type BatchChunk struct {
-	Time time.Time
-	Data []byte
-}
-
-type ProductDB struct {
-	Count     int
-	BatchTime time.Time
-	Batch     []*BatchChunk
-}
-
-func (p *ProductDB) NextSync(now time.Time) bool {
-	return math.Mod(float64(p.Count), 10000) == 0
-}
-
-func (p *ProductDB) FlushBatch(now time.Time) bool {
-	if now.Sub(p.BatchTime).Seconds() > 0.5 {
-		p.BatchTime = now
-		return true
-	}
-	return false
-}
-
-func (p *ProductDB) AddChunk(chunk *BatchChunk) {
-	p.Count = p.Count + 1
-	p.Batch = append(p.Batch, chunk)
-}
-
-func (p *ProductDB) Clear() {
-	p.Batch = []*BatchChunk{}
-}
-
-type Client struct {
-	BookUpdated   chan string
-	TradesUpdated chan string
-	Products      []string
-	Books         map[string]*orderbook.Book
-	Socket        *websocket.Conn
-	DB            *bolt.DB
-	ProductDB     map[string]*ProductDB
-	dbEnabled     bool
-}
-
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
-	c.Books[name] = orderbook.NewProductBook(name)
-	c.Books[name].AlwaysSort = false
-	c.ProductDB[name] = &ProductDB{Count: 0, Batch: []*BatchChunk{}}
+	c.Books[name] = orderbook.New(name)
+	c.BatchWrite[name] = &BookBatchWrite{Count: 0, Batch: []*BatchChunk{}}
 	if c.TradesUpdated != nil {
 		c.Books[name].TradesUpdated = c.TradesUpdated
 	}
@@ -140,93 +89,17 @@ type PacketHeader struct {
 	ProductID string `json:"product_id"`
 }
 
-func (c *Client) BookChanged(book *orderbook.Book) {
-	if c.BookUpdated == nil {
-		return
-	}
+func (c *Client) WriteDB(now time.Time, book *orderbook.Book, buf []byte) {
+	batch := c.BatchWrite[book.ID]
+	batch.AddChunk(&BatchChunk{Time: now, Data: buf})
 
-	c.BookUpdated <- book.ID
-}
-
-func UnpackTimeKey(key []byte) time.Time {
-	i, _ := strconv.ParseInt(string(key), 10, 64)
-	t := time.Unix(0, i)
-	return t
-}
-
-func PackTimeKey(t time.Time) []byte {
-	return []byte(fmt.Sprintf("%d", t.UnixNano()))
-}
-
-func PackUnixNanoKey(nano int64) []byte {
-	return []byte(fmt.Sprintf("%d", nano))
-}
-
-/*
-func (c *Client) WriteDBOld(book *orderbook.Book, data map[string]interface{}) {
-	c.DBCount += 1
-	now := time.Now()
-
-	var t time.Time
-	if _, ok := data["time"].(string); ok {
-		t, _ = time.Parse(TimeFormat, data["time"].(string))
-	} else {
-		var lastKey []byte
-		c.DB.View(func(tx *bolt.Tx) error {
-			lastKey, _ = tx.Bucket([]byte(book.ID)).Cursor().Last()
-			return nil
-		})
-		if lastKey != nil {
-			t = UnpackTimeKey(lastKey)
-		} else {
-			t = time.Now().Add(-1 * time.Second)
-		}
-	}
-
-	c.DBBatch = append(c.DBBatch, &BatchChunk{Time: t, Data: PackPacket(data)})
-
-	if now.Sub(c.DBBatchTime).Seconds() > 0.5 {
-		c.DBBatchTime = now
-		c.DB.Update(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(book.ID))
-			b.FillPercent = 0.9
-			var err error
-			var key []byte
-			for _, chunk := range c.DBBatch {
-				nano := chunk.Time.UnixNano()
-				// hack because gdax api returns 2017-04-06T05:11:37.608000Z
-				// instead of docs-stated precision 2014-11-09T08:19:27.028459Z
-				for {
-					key = PackUnixNanoKey(nano)
-					if b.Get(key) == nil {
-						break
-					} else {
-						nano += 1
-					}
-				}
-				err = b.Put(key, chunk.Data)
-				if err != nil {
-					fmt.Println("HandleMessage DB Error", err)
-				}
-			}
-			return err
-		})
-		c.DBBatch = []*BatchChunk{}
-	}
-}
-*/
-
-func (c *Client) WriteDB(now time.Time, book *orderbook.Book, data map[string]interface{}) {
-	product := c.ProductDB[book.ID]
-	product.AddChunk(&BatchChunk{Time: now, Data: PackPacket(data)})
-
-	if product.FlushBatch(now) {
+	if batch.FlushBatch(now) {
 		c.DB.Update(func(tx *bolt.Tx) error {
 			var err error
 			var key []byte
 			b := tx.Bucket([]byte(book.ID))
 			b.FillPercent = 0.9
-			for _, chunk := range product.Batch {
+			for _, chunk := range batch.Batch {
 				nano := chunk.Time.UnixNano()
 				// windows system clock resolution https://github.com/golang/go/issues/8687
 				for {
@@ -244,7 +117,8 @@ func (c *Client) WriteDB(now time.Time, book *orderbook.Book, data map[string]in
 			}
 			return err
 		})
-		product.Clear()
+		//fmt.Println("flush batch chunks", len(batch.Batch))
+		batch.Clear()
 	}
 }
 
@@ -254,14 +128,12 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 		log.Fatal(err)
 	}
 
-	var writeDB bool
+	var trade *orderbook.Order
 
 	switch header.Type {
 	case "received":
 		// skip
-		break
 	case "open":
-		writeDB = true
 		price, _ := strconv.ParseFloat(data["price"].(string), 64)
 		size, _ := strconv.ParseFloat(data["remaining_size"].(string), 64)
 
@@ -272,16 +144,9 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 			"size":  size,
 			//"time":           data["time"].(string),
 		})
-		c.BookChanged(book)
-
-		break
 	case "done":
-		writeDB = true
 		book.Remove(data["order_id"].(string))
-		c.BookChanged(book)
-		break
 	case "match":
-		writeDB = true
 		price, _ := strconv.ParseFloat(data["price"].(string), 64)
 		size, _ := strconv.ParseFloat(data["size"].(string), 64)
 
@@ -293,13 +158,12 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 			"taker_order_id": data["taker_order_id"].(string),
 			"time":           data["time"].(string),
 		}, false)
-		c.BookChanged(book)
-		break
+		trade = book.Trades[len(book.Trades)-1]
+
 	case "change":
 		if _, ok := book.OrderMap[data["order_id"].(string)]; !ok {
 			// if we don't know about the order, it is a change message for a received order
 		} else {
-			writeDB = true
 			// change messages are treated as match messages
 			old_size, _ := strconv.ParseFloat(data["old_size"].(string), 64)
 			new_size, _ := strconv.ParseFloat(data["new_size"].(string), 64)
@@ -313,51 +177,41 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 				"maker_order_id": data["order_id"].(string),
 				//"time":           data["time"].(string),
 			}, true)
-			c.BookChanged(book)
 		}
-		break
 	}
-
-	product := c.ProductDB[book.ID]
-	now := time.Now()
 
 	if c.dbEnabled {
-		if !product.NextSync(now) {
-			if writeDB {
-				c.WriteDB(now, book, data)
-			} else {
-				c.WriteDB(now, book, map[string]interface{}{
-					"type":     "ignore",
-					"sequence": data["sequence"],
-					"time":     data["time"],
-				})
-			}
+		batch := c.BatchWrite[book.ID]
+		now := time.Now()
+		if trade != nil {
+			c.WriteDB(now, book, PackTrade(trade))
+		}
+
+		if batch.NextSync(now) {
+			fmt.Println("STORE SYNC", book.ID, batch.Count)
+			c.WriteSync(batch, book, now)
 		} else {
-			fmt.Println("STORE SYNC", book.ID, product.Count)
-
-			bids := [][]interface{}{}
-			for _, level := range book.Bid {
-				for _, order := range level.Orders {
-					bids = append(bids, []interface{}{order.Price, order.Size, order.ID})
-				}
+			if batch.NextDiff(now) {
+				c.WriteDiff(batch, book, now)
 			}
-
-			asks := [][]interface{}{}
-			for _, level := range book.Ask {
-				for _, order := range level.Orders {
-					asks = append(asks, []interface{}{order.Price, order.Size, order.ID})
-				}
-			}
-
-			c.WriteDB(now, book, map[string]interface{}{
-				"type":     "sync",
-				"sequence": data["sequence"],
-				"time":     data["time"],
-				"bids":     bids,
-				"asks":     asks,
-			})
 		}
 	}
+}
+
+func (c *Client) WriteDiff(batch *BookBatchWrite, book *orderbook.Book, now time.Time) {
+	diff := book.Diff
+	if len(diff.Bid) != 0 || len(diff.Ask) != 0 {
+		pkt := PackDiff(batch.LastDiffSeq, book.Sequence, diff)
+		c.WriteDB(now, book, pkt)
+		book.ResetDiff()
+		batch.LastDiffSeq = book.Sequence + 1
+	}
+}
+
+func (c *Client) WriteSync(batch *BookBatchWrite, book *orderbook.Book, now time.Time) {
+	c.WriteDB(now, book, PackSync(book))
+	book.ResetDiff()
+	batch.LastDiffSeq = book.Sequence + 1
 }
 
 func (c *Client) Run() {

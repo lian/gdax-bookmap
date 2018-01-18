@@ -2,8 +2,6 @@ package orderbook
 
 import (
 	"fmt"
-	"sort"
-	"sync"
 	"time"
 
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
@@ -25,6 +23,11 @@ type Order struct {
 type BookLevel struct {
 	Price  float64
 	Orders []*Order
+}
+
+type LevelDiff struct {
+	Price float64
+	Size  float64
 }
 
 func (bl *BookLevel) Add(order *Order) {
@@ -55,158 +58,61 @@ func (bl *BookLevel) Remove(order *Order) {
 	}
 }
 
+func (bl *BookLevel) Size() float64 {
+	var size float64
+	for _, o := range bl.Orders {
+		size += o.Size
+	}
+	return size
+}
+
 func (bl *BookLevel) Empty() bool {
 	return len(bl.Orders) == 0
 }
 
-type BookLevelList []*BookLevel
-
-func (a BookLevelList) Len() int           { return len(a) }
-func (a BookLevelList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a BookLevelList) Less(i, j int) bool { return a[i].Price < a[j].Price }
-
-type OrderStateList []*OrderState
-
-func (a OrderStateList) Len() int           { return len(a) }
-func (a OrderStateList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a OrderStateList) Less(i, j int) bool { return a[i].Price < a[j].Price }
-
-type BookMapStats struct {
-	From time.Time
-	To   time.Time
-	Bid  OrderStateList
-	Ask  OrderStateList
-}
-
-type BookMapStatsCopy struct {
-	From time.Time
-	To   time.Time
-	Bid  []OrderState
-	Ask  []OrderState
-}
-
-func (stats *BookMapStats) Sort() {
-	sort.Sort(stats.Bid)
-	sort.Sort(stats.Ask)
+type BookLevelDiff struct {
+	Bid []*LevelDiff
+	Ask []*LevelDiff
 }
 
 type Book struct {
-	ID              string
-	Bid             BookLevelList
-	Ask             BookLevelList
-	OrderMap        map[string]*Order
-	Sequence        uint64
-	Trades          []*Order
-	TradesUpdated   chan string
-	Stats           *BookMapStats
-	SkipStatsUpdate bool
-	AlwaysSort      bool
-	ProductInfo     product_info.Info
-	MuTrades        sync.Mutex
+	ID            string
+	ProductInfo   product_info.Info
+	Bid           map[float64]*BookLevel
+	Ask           map[float64]*BookLevel
+	OrderMap      map[string]*Order
+	Sequence      uint64
+	Trades        []*Order
+	TradesUpdated chan string
+	Diff          *BookLevelDiff
 }
 
 func New(id string) *Book {
 	b := &Book{
-		ID:       id,
-		Bid:      []*BookLevel{},
-		Ask:      []*BookLevel{},
-		OrderMap: map[string]*Order{},
-		Trades:   []*Order{},
+		ID:          id,
+		ProductInfo: FetchProductInfo(id),
+		Bid:         map[float64]*BookLevel{},
+		Ask:         map[float64]*BookLevel{},
+		OrderMap:    map[string]*Order{},
+		Trades:      []*Order{},
 	}
-	//b.ResetStats()
+	b.ResetDiff()
 	return b
 }
 
-func NewProductBook(id string) *Book {
-	b := New(id)
-	b.InitProductInfo()
-	return b
-}
-
-func (b *Book) InitProductInfo() {
-	b.ProductInfo = FetchProductInfo(b.ID)
-}
-
-// TODO: improve. prolly memory/gc hungy
-func (b *Book) StatsCopy() *BookMapStatsCopy {
-	b.Stats.Sort()
-
-	s := &BookMapStatsCopy{
-		From: b.Stats.From,
-		To:   b.Stats.To,
-		Bid:  make([]OrderState, 0, len(b.Stats.Bid)),
-		Ask:  make([]OrderState, 0, len(b.Stats.Ask)),
-	}
-
-	for _, state := range b.Stats.Bid {
-		s.Bid = append(s.Bid, *state)
-	}
-
-	for _, state := range b.Stats.Ask {
-		s.Ask = append(s.Ask, *state)
-	}
-
-	return s
-}
-
-func (b *Book) CenterPrice() float64 {
-	if b.Empty() {
-		return 0.0
-	}
-	spread := b.Spread()
-	return b.Ask[0].Price + (spread / 2)
-}
-
-func (b *Book) Empty() bool {
-	return len(b.Ask) == 0 && len(b.Ask) == 0
-}
-
-func (b *Book) Sort() {
-	if !b.AlwaysSort {
-		sort.Sort(b.Bid)
-		sort.Sort(b.Ask)
-	}
-}
-
-func (b *Book) Spread() float64 {
-	b.Sort()
-	var spread float64
-	if len(b.Bid) > 0 && len(b.Ask) > 0 {
-		spread = b.Ask[0].Price - b.Bid[len(b.Bid)-1].Price
-	}
-	return spread
-}
-
-func (b *Book) ResetStats() {
-	b.Stats = nil
-	b.Stats = &BookMapStats{
-		Bid: OrderStateList{},
-		Ask: OrderStateList{},
-	}
-
-	for _, level := range b.Bid {
-		bid := &OrderState{Price: level.Price}
-		for _, order := range level.Orders {
-			bid.Size += order.Size
-			bid.OrderCount += 1
-		}
-		b.Stats.Bid = append(b.Stats.Bid, bid)
-	}
-
-	for _, level := range b.Ask {
-		ask := &OrderState{Price: level.Price}
-		for _, order := range level.Orders {
-			ask.Size += order.Size
-			ask.OrderCount += 1
-		}
-		b.Stats.Ask = append(b.Stats.Ask, ask)
+func (b *Book) ResetDiff() {
+	b.Diff = nil
+	b.Diff = &BookLevelDiff{
+		Bid: []*LevelDiff{},
+		Ask: []*LevelDiff{},
 	}
 }
 
 func (b *Book) Clear() {
-	b.Bid = []*BookLevel{}
-	b.Ask = []*BookLevel{}
+	b.Bid = map[float64]*BookLevel{}
+	b.Ask = map[float64]*BookLevel{}
 	b.OrderMap = map[string]*Order{}
+	b.ResetDiff()
 }
 
 func (b *Book) Add(data map[string]interface{}) {
@@ -230,28 +136,35 @@ func (b *Book) Add(data map[string]interface{}) {
 
 	level, found := b.FindLevel(order)
 	if !found {
-		b.AddLevel(order)
-	} else {
-		level.Add(order)
+		level = b.AddLevel(order)
+	}
+	level.Add(order)
 
-		if b.Stats != nil && !b.SkipStatsUpdate {
-			if order.Side == BidSide {
-				for _, state := range b.Stats.Bid {
-					if state.Price == order.Price {
-						state.Size = state.Size + order.Size
-						state.OrderCount += 1
-						break
-					}
-				}
-			} else {
-				for _, state := range b.Stats.Ask {
-					if state.Price == order.Price {
-						state.Size = state.Size + order.Size
-						state.OrderCount += 1
-						break
-					}
-				}
+	// update diff stats
+	size := level.Size()
+	if order.Side == BidSide {
+		var found bool
+		for _, state := range b.Diff.Bid {
+			if state.Price == order.Price {
+				state.Size = size
+				found = true
+				break
 			}
+		}
+		if !found {
+			b.Diff.Bid = append(b.Diff.Bid, &LevelDiff{Price: order.Price, Size: size})
+		}
+	} else {
+		var found bool
+		for _, state := range b.Diff.Ask {
+			if state.Price == order.Price {
+				state.Size = size
+				found = true
+				break
+			}
+		}
+		if !found {
+			b.Diff.Ask = append(b.Diff.Ask, &LevelDiff{Price: order.Price, Size: size})
 		}
 	}
 }
@@ -266,112 +179,71 @@ func (b *Book) Remove(order_id string) {
 
 	level, _ := b.FindLevel(order)
 	level.Remove(order)
+
+	// update diff stats
+	size := level.Size()
+	if order.Side == BidSide {
+		var found bool
+		for _, state := range b.Diff.Bid {
+			if state.Price == order.Price {
+				state.Size = size
+				found = true
+				break
+			}
+		}
+		if !found {
+			b.Diff.Bid = append(b.Diff.Bid, &LevelDiff{Price: order.Price, Size: size})
+		}
+	} else {
+		var found bool
+		for _, state := range b.Diff.Ask {
+			if state.Price == order.Price {
+				state.Size = size
+				found = true
+				break
+			}
+		}
+		if !found {
+			b.Diff.Ask = append(b.Diff.Ask, &LevelDiff{Price: order.Price, Size: size})
+		}
+	}
+
 	if level.Empty() {
 		b.RemoveLevel(order.Side, level)
 	}
+
 }
 
-func (b *Book) AddLevel(order *Order) {
-	level := &BookLevel{Price: order.Price, Orders: []*Order{order}}
+func (b *Book) AddLevel(order *Order) *BookLevel {
+	level := &BookLevel{Price: order.Price, Orders: []*Order{}}
 	if order.Side == BidSide {
-		b.Bid = append(b.Bid, level)
-		if b.AlwaysSort {
-			sort.Sort(b.Bid)
-		}
+		b.Bid[order.Price] = level
 	} else {
-		b.Ask = append(b.Ask, level)
-		if b.AlwaysSort {
-			sort.Sort(b.Ask)
-		}
+		b.Ask[order.Price] = level
 	}
-
-	if b.Stats != nil && !b.SkipStatsUpdate { // SkipStatsUpdate here makes no sense
-		state := &OrderState{Price: order.Price, Size: order.Size, OrderCount: 1}
-		if order.Side == BidSide {
-			b.Stats.Bid = append(b.Stats.Bid, state)
-		} else {
-			b.Stats.Ask = append(b.Stats.Ask, state)
-		}
-	}
+	return level
 }
 
 func (b *Book) RemoveLevel(side Side, level *BookLevel) {
 	if side == BidSide {
-		for i, current := range b.Bid {
-			if current.Price == level.Price {
-				b.Bid[i] = b.Bid[len(b.Bid)-1]
-				b.Bid[len(b.Bid)-1] = nil
-				b.Bid = b.Bid[:len(b.Bid)-1]
-				if b.AlwaysSort {
-					sort.Sort(b.Bid)
-				}
-				break
-			}
+		if _, ok := b.Bid[level.Price]; ok {
+			delete(b.Bid, level.Price)
 		}
 	} else {
-		for i, current := range b.Ask {
-			if current.Price == level.Price {
-				b.Ask[i] = b.Ask[len(b.Ask)-1]
-				b.Ask[len(b.Ask)-1] = nil
-				b.Ask = b.Ask[:len(b.Ask)-1]
-				if b.AlwaysSort {
-					sort.Sort(b.Ask)
-				}
-				break
-			}
+		if _, ok := b.Ask[level.Price]; ok {
+			delete(b.Ask, level.Price)
 		}
 	}
-}
-
-func (b *Book) StateAsStats() *BookMapStatsCopy {
-	b.Sort()
-
-	stats := &BookMapStatsCopy{
-		Bid: make([]OrderState, 0, len(b.Bid)),
-		Ask: make([]OrderState, 0, len(b.Ask)),
-	}
-
-	//for _, level := range b.Bid {
-	for i := len(b.Bid) - 1; i >= 0; i-- {
-		level := b.Bid[i]
-		if level == nil { // fix: duo to unsafe access in opengl/orderbook/book.go
-			continue
-		}
-		bid := OrderState{Price: level.Price}
-		for _, order := range level.Orders {
-			bid.Size += order.Size
-			bid.OrderCount += 1
-		}
-		stats.Bid = append(stats.Bid, bid)
-	}
-
-	for _, level := range b.Ask {
-		if level == nil { // fix: duo to unsafe access in opengl/orderbook/book.go
-			continue
-		}
-		ask := OrderState{Price: level.Price}
-		for _, order := range level.Orders {
-			ask.Size += order.Size
-			ask.OrderCount += 1
-		}
-		stats.Ask = append(stats.Ask, ask)
-	}
-
-	return stats
 }
 
 func (b *Book) FindLevel(order *Order) (*BookLevel, bool) {
 	if order.Side == BidSide {
-		for _, level := range b.Bid {
-			if level.Price == order.Price {
-				return level, true
-			}
+		if level, ok := b.Bid[order.Price]; ok {
+			return level, true
 		}
 	} else {
-		for _, level := range b.Ask {
-			if level.Price == order.Price {
-				return level, true
-			}
+		if level, ok := b.Ask[order.Price]; ok {
+			return level, true
 		}
 	}
 
@@ -423,40 +295,32 @@ func (b *Book) Match(data map[string]interface{}, change bool) {
 		b.Remove(order.ID)
 	}
 
-	if change && b.Stats != nil {
+	// update diff stats if change
+	size := level.Size()
+	if change {
 		if match.Side == BidSide {
-			for _, state := range b.Stats.Bid {
+			var found bool
+			for _, state := range b.Diff.Bid {
 				if state.Price == order.Price {
-					state.Size = state.Size - match.Size
+					state.Size = size
+					found = true
 					break
 				}
+			}
+			if !found {
+				b.Diff.Bid = append(b.Diff.Bid, &LevelDiff{Price: order.Price, Size: size})
 			}
 		} else {
-			for _, state := range b.Stats.Ask {
+			var found bool
+			for _, state := range b.Diff.Ask {
 				if state.Price == order.Price {
-					state.Size = state.Size - match.Size
+					state.Size = size
+					found = true
 					break
 				}
 			}
-		}
-	}
-
-	if !change && b.Stats != nil {
-		if match.Side == BidSide {
-			for _, state := range b.Stats.Bid {
-				if state.Price == order.Price {
-					state.TradeSize += match.Size
-					//state.TradeCount += 1
-					break
-				}
-			}
-		} else {
-			for _, state := range b.Stats.Ask {
-				if state.Price == order.Price {
-					state.TradeSize += match.Size
-					//state.TradeCount += 1
-					break
-				}
+			if !found {
+				b.Diff.Ask = append(b.Diff.Ask, &LevelDiff{Price: order.Price, Size: size})
 			}
 		}
 	}
@@ -466,127 +330,15 @@ func (b *Book) Match(data map[string]interface{}, change bool) {
 	}
 }
 
-func (b *Book) LastPrice() float64 {
-	b.MuTrades.Lock()
-	defer b.MuTrades.Unlock()
-	var lastPrice float64
-	i := len(b.Trades)
-	if i > 0 {
-		lastPrice = b.Trades[i-1].Price
-	} else {
-		lastPrice = b.CenterPrice()
-	}
-	return lastPrice
-}
-
 func (b *Book) AddTrade(match *Order) {
-	b.MuTrades.Lock()
-	//fmt.Println("trade", match)
 	if len(b.Trades) >= 50 {
-		// remove and free first item
 		copy(b.Trades[0:], b.Trades[1:])
 		b.Trades[len(b.Trades)-1] = nil
 		b.Trades = b.Trades[:len(b.Trades)-1]
 	}
 	b.Trades = append(b.Trades, match)
-	b.MuTrades.Unlock()
 
 	if b.TradesUpdated != nil {
 		b.TradesUpdated <- b.ID
 	}
 }
-
-type OrderState struct {
-	Price      float64
-	Size       float64
-	OrderCount int
-	TradeSize  float64
-}
-
-/*
-func (b *Book) StateCombined() ([]OrderState, []OrderState) {
-	sort.Sort(b.Bid)
-	sort.Sort(b.Ask)
-
-	bids := []OrderState{}
-
-	for i := len(b.Bid) - 1; i >= 0; i-- {
-		level := b.Bid[i]
-		bid := OrderState{Price: level.Price}
-		for _, order := range level.Orders {
-			bid.Size += order.Size
-			bid.OrderCount += 1
-		}
-		bids = append(bids, bid)
-	}
-
-	asks := []OrderState{}
-	for _, level := range b.Ask {
-		ask := OrderState{Price: level.Price}
-		for _, order := range level.Orders {
-			ask.Size += order.Size
-			ask.OrderCount += 1
-		}
-		asks = append(asks, ask)
-	}
-
-	return bids, asks
-}
-*/
-
-/*
-func main() {
-	fmt.Println("foo")
-	book := NewBook()
-	book.Add(map[string]interface{}{
-		"id":    "id-1",
-		"price": 100.0,
-		"size":  1.0,
-		"side":  "bid",
-	})
-	book.Add(map[string]interface{}{
-		"id":    "id-1-1",
-		"price": 100.0,
-		"size":  1.0,
-		"side":  "bid",
-	})
-	book.Add(map[string]interface{}{
-		"id":    "id-2",
-		"price": 100.5,
-		"size":  1.0,
-		"side":  "bid",
-	})
-	book.Add(map[string]interface{}{
-		"id":    "id-3",
-		"price": 99.5,
-		"size":  0.5,
-		"side":  "ask",
-	})
-	book.Add(map[string]interface{}{
-		"id":    "id-4",
-		"price": 99.4,
-		"size":  0.5,
-		"side":  "ask",
-	})
-
-	book.Remove("id-1")
-	book.Remove("id-3")
-	book.Remove("id-4")
-
-	book.Match(map[string]interface{}{
-		"size":           0.5,
-		"price":          100.0,
-		"side":           "bid",
-		"maker_order_id": "id-1-1",
-	})
-
-	book.Match(map[string]interface{}{
-		"size":           0.5,
-		"price":          100.0,
-		"side":           "bid",
-		"maker_order_id": "id-1-1",
-	})
-
-	spew.Dump(book)
-}
-*/

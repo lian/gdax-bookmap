@@ -217,16 +217,12 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 			now := time.Now()
 			if time.Since(c.LastSync) > (time.Minute * 1) {
 				c.LastSync = now
-				//fmt.Println("write sync")
 				c.WriteDB(now, book, PackSync(book))
 			} else {
-				//fmt.Println("write diff")
 				c.WriteDB(now, book, PackDiff(&depthUpdate))
 			}
 		}
 
-		//PrintBooks(c)
-		//fmt.Println(book.Name, "DEPTH", eventTime, depthUpdate)
 	case "aggTrade":
 		var trade PacketAggTrade
 		if err := json.Unmarshal(raw, &trade); err != nil {
@@ -245,7 +241,6 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 			c.WriteDB(now, book, PackTrade(side, price, quantity))
 		}
 
-		//fmt.Println(book.Name, "TRADE", t, trade)
 	default:
 		fmt.Println("unkown event", book.ID, event.EventType, string(raw))
 		return

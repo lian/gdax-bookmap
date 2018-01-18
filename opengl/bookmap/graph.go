@@ -6,12 +6,23 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/boltdb/bolt"
 	"github.com/lian/gdax-bookmap/binance/websocket"
 	"github.com/lian/gdax-bookmap/orderbook"
 )
+
+func UnpackTimeKey(key []byte) time.Time {
+	i, _ := strconv.ParseInt(string(key), 10, 64)
+	t := time.Unix(0, i)
+	return t
+}
+
+func PackTimeKey(t time.Time) []byte {
+	return []byte(fmt.Sprintf("%d", t.UnixNano()))
+}
 
 type Graph struct {
 	CurrentKey       []byte
@@ -78,7 +89,7 @@ func (g *Graph) SetStart(start time.Time) bool {
 
 	g.Book = book
 	g.CurrentKey = startKey
-	g.CurrentTime = websocket.UnpackTimeKey(startKey)
+	g.CurrentTime = UnpackTimeKey(startKey)
 	g.Timeslots = make([]*TimeSlot, 0, g.SlotCount)
 
 	return true
@@ -182,7 +193,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				break
 			}
 
-			t := websocket.UnpackTimeKey(key)
+			t := UnpackTimeKey(key)
 
 			isTrade = false
 			seq := websocket.UnpackSequence(buf)
@@ -222,7 +233,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 
 		if !bytes.Equal(g.LastProcessedKey, g.CurrentKey) {
 			g.CurrentKey = []byte(string(g.LastProcessedKey))
-			g.CurrentTime = websocket.UnpackTimeKey(g.CurrentKey)
+			g.CurrentTime = UnpackTimeKey(g.CurrentKey)
 			slot.Stats = g.Book.Book.StatsCopy()
 		} else {
 			if jumpNext {
@@ -249,7 +260,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 	//fmt.Println("Begin FetchBook")
 	var err error
 	book := orderbook.NewDbBook(g.ProductID)
-	startKey := websocket.PackTimeKey(from)
+	startKey := PackTimeKey(from)
 
 	g.DB.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket([]byte(g.ProductID)).Cursor()
@@ -266,7 +277,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 
 		// apply sync packet
 		pkt := websocket.UnpackPacket(buf)
-		book.Process(websocket.UnpackTimeKey(key), pkt)
+		book.Process(UnpackTimeKey(key), pkt)
 		g.LastProcessedKey = []byte(string(key))
 
 		// walk and fill book until startKey
@@ -274,7 +285,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 			if bytes.Compare(key, startKey) < 0 {
 				startKey = key
 				pkt := websocket.UnpackPacket(buf)
-				book.Process(websocket.UnpackTimeKey(key), pkt)
+				book.Process(UnpackTimeKey(key), pkt)
 				g.LastProcessedKey = []byte(string(key))
 			} else {
 				break

@@ -24,9 +24,6 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 		book.Clear()
 		book.Sequence = uint64(seq.(float64))
 
-		packBids := [][]interface{}{}
-		packAsks := [][]interface{}{}
-
 		if bids, ok := full["bids"].([]interface{}); ok {
 			for i := len(bids) - 1; i >= 0; i-- {
 				data := bids[i].([]interface{})
@@ -38,7 +35,6 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 					"price": price,
 					"size":  size,
 				})
-				packBids = append(packBids, []interface{}{price, size, data[2].(string)})
 			}
 		}
 		if asks, ok := full["asks"].([]interface{}); ok {
@@ -52,16 +48,11 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 					"price": price,
 					"size":  size,
 				})
-				packAsks = append(packAsks, []interface{}{price, size, data[2].(string)})
 			}
 		}
 
-		client.WriteDB(time.Now(), book, map[string]interface{}{
-			"type":     "sync",
-			"sequence": full["sequence"],
-			"bids":     packBids,
-			"asks":     packAsks,
-		})
+		now := time.Now()
+		client.WriteDB(now, book, PackSync(book))
 	}
 
 	return nil
