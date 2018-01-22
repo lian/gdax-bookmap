@@ -29,7 +29,7 @@ func (p *BookBatchWrite) NextSync(now time.Time) bool {
 }
 
 func (p *BookBatchWrite) NextDiff(now time.Time) bool {
-	if now.Sub(p.LastDiff).Seconds() >= 0.5 {
+	if now.Sub(p.LastDiff).Seconds() >= 1.0 {
 		p.LastDiff = now
 		return true
 	}

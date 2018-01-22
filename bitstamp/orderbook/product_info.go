@@ -47,7 +47,32 @@ func init() {
 			QuoteIncrement: 0.01,
 			FloatFormat:    fmt.Sprintf("%%.%df", util.NumDecPlaces(0.01)),
 		},
+		"XRP-USD": product_info.Info{
+			Platform:       "Bitstamp",
+			DatabaseKey:    "Bitstamp-XRP-USD",
+			ID:             "XRP-USD",
+			DisplayName:    "XRP-USD",
+			BaseCurrency:   "XRP",
+			QuoteCurrency:  "USD",
+			BaseMinSize:    0,
+			BaseMaxSize:    0,
+			QuoteIncrement: 0.01,
+			FloatFormat:    fmt.Sprintf("%%.%df", util.NumDecPlaces(0.01)),
+		},
+		"BCH-USD": product_info.Info{
+			Platform:       "Bitstamp",
+			DatabaseKey:    "Bitstamp-BCH-USD",
+			ID:             "BCH-USD",
+			DisplayName:    "BCH-USD",
+			BaseCurrency:   "BCH",
+			QuoteCurrency:  "USD",
+			BaseMinSize:    0,
+			BaseMaxSize:    0,
+			QuoteIncrement: 0.01,
+			FloatFormat:    fmt.Sprintf("%%.%df", util.NumDecPlaces(0.01)),
+		},
 	}
+	// btcusd, btceur, eurusd, xrpusd, xrpeur, xrpbtc, ltcusd, ltceur, ltcbtc, ethusd, etheur, ethbtc, bchusd, bcheur, bchbtc
 }
 
 func FetchProductInfo(id string) product_info.Info {

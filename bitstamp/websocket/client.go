@@ -37,7 +37,7 @@ func New(bookUpdated, tradesUpdated chan string) *Client {
 		BatchWrite:    map[string]*util.BookBatchWrite{},
 	}
 
-	products := []string{"BTC-USD", "ETH-USD", "LTC-USD"}
+	products := []string{"BTC-USD", "ETH-USD", "LTC-USD", "XRP-USD", "BCH-USD"}
 
 	for _, name := range products {
 		c.AddProduct(name)
@@ -230,6 +230,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, pkt Packet) {
 }
 
 func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
+	book.FixBookLevels() // TODO fix/remove
 	diff := book.Diff
 	if len(diff.Bid) != 0 || len(diff.Ask) != 0 {
 		pkt := PackDiff(batch.LastDiffSeq, book.Sequence, diff)
@@ -240,6 +241,7 @@ func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now
 }
 
 func (c *Client) WriteSync(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
+	book.FixBookLevels() // TODO fix/remove
 	c.WriteDB(now, book, PackSync(book))
 	book.ResetDiff()
 	batch.LastDiffSeq = book.Sequence + 1

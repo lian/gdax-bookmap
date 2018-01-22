@@ -1,6 +1,7 @@
 package orderbook
 
 import (
+	"math"
 	"strings"
 	"time"
 
@@ -147,6 +148,49 @@ func (b *Book) UpdateAskLevel(t time.Time, price, size float64) {
 	if !found {
 		b.Diff.Ask = append(b.Diff.Ask, &LevelDiff{Price: price, Size: size})
 	}
+}
+
+// :.(
+func (b *Book) FixBookLevels() {
+	now := time.Now()
+
+	lowestAsk := math.MaxFloat64
+	for _, level := range b.Ask {
+		if level.Price < lowestAsk {
+			lowestAsk = level.Price
+		}
+	}
+
+	highestBid := 0.0
+	for _, level := range b.Bid {
+		if level.Price > highestBid {
+			highestBid = level.Price
+		}
+	}
+
+	deleteBids := []float64{}
+	for _, level := range b.Bid {
+		if level.Price > lowestAsk {
+			deleteBids = append(deleteBids, level.Price)
+		}
+	}
+
+	for _, price := range deleteBids {
+		b.UpdateBidLevel(now, price, 0)
+	}
+
+	deleteAsks := []float64{}
+	for _, level := range b.Ask {
+		if level.Price < highestBid {
+			deleteAsks = append(deleteAsks, level.Price)
+		}
+	}
+
+	for _, price := range deleteAsks {
+		b.UpdateAskLevel(now, price, 0)
+	}
+
+	//fmt.Println("FixBookLevels", b.ID, "took", time.Since(now))
 }
 
 func (b *Book) AddTrade(t time.Time, side uint8, price, size float64) {
