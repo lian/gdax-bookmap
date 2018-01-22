@@ -51,8 +51,12 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 			}
 		}
 
-		now := time.Now()
-		client.WriteDB(now, book, PackSync(book))
+		if client.dbEnabled {
+			batch := client.BatchWrite[book.ID]
+			now := time.Now()
+			fmt.Println("STORE INIT SYNC", book.ID, batch.Count)
+			client.WriteSync(batch, book, now)
+		}
 	}
 
 	return nil

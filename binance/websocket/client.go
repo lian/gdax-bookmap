@@ -51,7 +51,7 @@ func New(bookUpdated, tradesUpdated chan string) *Client {
 		buckets := []string{}
 		for _, name := range products {
 			info := orderbook.FetchProductInfo(name)
-			buckets = append(buckets, info.ID)
+			buckets = append(buckets, info.DatabaseKey)
 		}
 		c.DB = OpenDB(path, buckets, false)
 	}
@@ -155,7 +155,7 @@ func (c *Client) WriteDB(now time.Time, book *orderbook.Book, buf []byte) {
 	c.DB.Update(func(tx *bolt.Tx) error {
 		var err error
 		var key []byte
-		b := tx.Bucket([]byte(book.ProductInfo.ID))
+		b := tx.Bucket([]byte(book.ProductInfo.DatabaseKey))
 		b.FillPercent = 0.9
 
 		nano := now.UnixNano()

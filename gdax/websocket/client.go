@@ -51,7 +51,12 @@ func New(bookUpdated, tradesUpdated chan string) *Client {
 	}
 
 	if c.dbEnabled {
-		c.DB = OpenDB(path, products, false)
+		buckets := []string{}
+		for _, name := range products {
+			info := orderbook.FetchProductInfo(name)
+			buckets = append(buckets, info.DatabaseKey)
+		}
+		c.DB = OpenDB(path, buckets, false)
 	}
 
 	return c
@@ -97,7 +102,7 @@ func (c *Client) WriteDB(now time.Time, book *orderbook.Book, buf []byte) {
 		c.DB.Update(func(tx *bolt.Tx) error {
 			var err error
 			var key []byte
-			b := tx.Bucket([]byte(book.ID))
+			b := tx.Bucket([]byte(book.ProductInfo.DatabaseKey))
 			b.FillPercent = 0.9
 			for _, chunk := range batch.Batch {
 				nano := chunk.Time.UnixNano()

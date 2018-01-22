@@ -27,6 +27,8 @@ func (t *FloatString) UnmarshalJSON(data []byte) error {
 }
 
 type Info struct {
+	DatabaseKey    string
+	Platform       string
 	ID             string      `json:"id"`
 	DisplayName    string      `json:"display_name"`
 	BaseCurrency   string      `json:"base_currency"`

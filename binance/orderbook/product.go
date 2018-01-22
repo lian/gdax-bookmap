@@ -43,6 +43,8 @@ func FetchAllProductInfo() {
 				DisplayName:   fmt.Sprintf("%s-%s", i["baseAsset"].(string), i["quoteAsset"].(string)),
 				BaseCurrency:  i["baseAsset"].(string),
 				QuoteCurrency: i["quoteAsset"].(string),
+				Platform:      "Binance",
+				DatabaseKey:   fmt.Sprintf("Binance-%s-%s", i["baseAsset"].(string), i["quoteAsset"].(string)),
 			}
 
 			if filters, ok := i["filters"].([]interface{}); ok {

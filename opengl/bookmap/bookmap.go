@@ -113,7 +113,7 @@ func (s *Bookmap) Progress() bool {
 	now := time.Now()
 
 	if s.Graph == nil {
-		graph := NewGraph(s.DB, s.ID, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
+		graph := NewGraph(s.DB, s.ProductInfo.DatabaseKey, int(s.Texture.Width-80), int(s.ColumnWidth), int(s.ViewportStep))
 		if graph.SetStart(now) {
 			s.Graph = graph
 		}
