@@ -11,7 +11,7 @@ import (
 	"github.com/lian/gdax-bookmap/gdax/orderbook"
 )
 
-func SyncBook(book *orderbook.Book, client *Client) error {
+func (c *Client) SyncBook(book *orderbook.Book) error {
 	fmt.Println("sync", book.ID)
 
 	full, err := FetchRawBook(3, book.ID)
@@ -51,11 +51,11 @@ func SyncBook(book *orderbook.Book, client *Client) error {
 			}
 		}
 
-		if client.dbEnabled {
-			batch := client.BatchWrite[book.ID]
+		if c.dbEnabled {
+			batch := c.BatchWrite[book.ID]
 			now := time.Now()
 			fmt.Println("STORE INIT SYNC", book.ID, batch.Count)
-			client.WriteSync(batch, book, now)
+			c.WriteSync(batch, book, now)
 		}
 	}
 

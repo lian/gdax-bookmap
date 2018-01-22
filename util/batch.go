@@ -1,9 +1,16 @@
 package util
 
 import (
+	"fmt"
 	"math"
 	"time"
+
+	"github.com/boltdb/bolt"
 )
+
+func PackUnixNanoKey(nano int64) []byte {
+	return []byte(fmt.Sprintf("%d", nano))
+}
 
 type BatchChunk struct {
 	Time time.Time
@@ -51,4 +58,36 @@ func (p *BookBatchWrite) AddChunk(chunk *BatchChunk) {
 
 func (p *BookBatchWrite) Clear() {
 	p.Batch = []*BatchChunk{}
+}
+
+func (p *BookBatchWrite) Write(db *bolt.DB, now time.Time, bucket string, buf []byte) {
+	p.AddChunk(&BatchChunk{Time: now, Data: buf})
+
+	if p.FlushBatch(now) {
+		db.Update(func(tx *bolt.Tx) error {
+			var err error
+			var key []byte
+			b := tx.Bucket([]byte(bucket))
+			b.FillPercent = 0.9
+			for _, chunk := range p.Batch {
+				nano := chunk.Time.UnixNano()
+				// windows system clock resolution https://github.com/golang/go/issues/8687
+				for {
+					key = PackUnixNanoKey(nano)
+					if b.Get(key) == nil {
+						break
+					} else {
+						nano += 1
+					}
+				}
+				err = b.Put(key, chunk.Data)
+				if err != nil {
+					fmt.Println("HandleMessage DB Error", err)
+				}
+			}
+			return err
+		})
+		//fmt.Println("flush batch chunks", len(p.Batch))
+		p.Clear()
+	}
 }

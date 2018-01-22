@@ -8,10 +8,6 @@ import (
 	db_orderbook "github.com/lian/gdax-bookmap/orderbook"
 )
 
-func PackUnixNanoKey(nano int64) []byte {
-	return db_orderbook.PackUnixNanoKey(nano)
-}
-
 func PackSync(book *orderbook.Book) []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, db_orderbook.SyncPacket)

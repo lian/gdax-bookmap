@@ -110,39 +110,6 @@ type Packet struct {
 	Data    string `json:"data"`
 }
 
-func (c *Client) WriteDB(now time.Time, book *orderbook.Book, buf []byte) {
-	batch := c.BatchWrite[book.ID]
-	batch.AddChunk(&util.BatchChunk{Time: now, Data: buf})
-
-	if batch.FlushBatch(now) {
-		c.DB.Update(func(tx *bolt.Tx) error {
-			var err error
-			var key []byte
-			b := tx.Bucket([]byte(book.ProductInfo.DatabaseKey))
-			b.FillPercent = 0.9
-			for _, chunk := range batch.Batch {
-				nano := chunk.Time.UnixNano()
-				// windows system clock resolution https://github.com/golang/go/issues/8687
-				for {
-					key = PackUnixNanoKey(nano)
-					if b.Get(key) == nil {
-						break
-					} else {
-						nano += 1
-					}
-				}
-				err = b.Put(key, chunk.Data)
-				if err != nil {
-					fmt.Println("HandleMessage DB Error", err)
-				}
-			}
-			return err
-		})
-		//fmt.Println("flush batch chunks", len(batch.Batch))
-		batch.Clear()
-	}
-}
-
 func (c *Client) UpdateSync(book *orderbook.Book, last uint64) error {
 	seq := book.Sequence
 	/*
@@ -216,7 +183,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, pkt Packet) {
 		batch := c.BatchWrite[book.ID]
 		now := time.Now()
 		if trade != nil {
-			c.WriteDB(now, book, PackTrade(trade))
+			batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, PackTrade(trade))
 		}
 
 		if batch.NextSync(now) {
@@ -236,7 +203,7 @@ func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now
 	diff := book.Diff
 	if len(diff.Bid) != 0 || len(diff.Ask) != 0 {
 		pkt := PackDiff(batch.LastDiffSeq, book.Sequence, diff)
-		c.WriteDB(now, book, pkt)
+		batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, pkt)
 		book.ResetDiff()
 		batch.LastDiffSeq = book.Sequence + 1
 	}
@@ -244,7 +211,7 @@ func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now
 
 func (c *Client) WriteSync(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
 	book.FixBookLevels() // TODO fix/remove
-	c.WriteDB(now, book, PackSync(book))
+	batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, PackSync(book))
 	book.ResetDiff()
 	batch.LastDiffSeq = book.Sequence + 1
 }
