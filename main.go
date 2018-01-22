@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
@@ -13,12 +15,17 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/lian/gonky/shader"
 
-	//_ "net/http/pprof"
+	"net/http"
+	_ "net/http/pprof"
 
-	//gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
 	binance_websocket "github.com/lian/gdax-bookmap/binance/websocket"
+	bitstamp_websocket "github.com/lian/gdax-bookmap/bitstamp/websocket"
+	gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
+
 	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
 	opengl_trades "github.com/lian/gdax-bookmap/opengl/trades"
+	"github.com/lian/gdax-bookmap/orderbook/product_info"
+	"github.com/lian/gdax-bookmap/util"
 )
 
 var (
@@ -40,26 +47,35 @@ func triggerRedraw() {
 	}
 }
 
+func SetActiveProduct(index int) {
+	if index < len(infos) {
+		i := infos[index]
+		ActiveProduct = i.DatabaseKey
+	}
+}
+
 func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Action, mods glfw.ModifierKey) {
 	//fmt.Printf("%v %d, %v %v\n", key, scancode, action, mods)
 	if key == glfw.KeyEscape && action == glfw.Press {
 		window.SetShouldClose(true)
 	} else if key == glfw.Key1 && action == glfw.Press {
-		ActiveProduct = "BTC-USD"
+		SetActiveProduct(0)
 	} else if key == glfw.Key2 && action == glfw.Press {
-		ActiveProduct = "BTC-EUR"
+		SetActiveProduct(1)
 	} else if key == glfw.Key3 && action == glfw.Press {
-		ActiveProduct = "LTC-USD"
+		SetActiveProduct(2)
 	} else if key == glfw.Key4 && action == glfw.Press {
-		ActiveProduct = "ETH-USD"
+		SetActiveProduct(3)
 	} else if key == glfw.Key5 && action == glfw.Press {
-		ActiveProduct = "ETH-BTC"
+		SetActiveProduct(4)
 	} else if key == glfw.Key6 && action == glfw.Press {
-		ActiveProduct = "LTC-BTC"
+		SetActiveProduct(5)
 	} else if key == glfw.Key7 && action == glfw.Press {
-		ActiveProduct = "BCH-USD"
+		SetActiveProduct(6)
 	} else if key == glfw.Key8 && action == glfw.Press {
-		ActiveProduct = "BCH-BTC"
+		SetActiveProduct(7)
+	} else if key == glfw.Key9 && action == glfw.Press {
+		SetActiveProduct(8)
 	} else if key == glfw.KeyS && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceScrollPosition += bm.PriceSteps
@@ -96,7 +112,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm := bookmaps[ActiveProduct]
 		bm.PriceSteps = bm.PriceSteps * 2
 		if bm.PriceSteps >= float64(bm.ProductInfo.BaseMaxSize) {
-			bm.PriceSteps = float64(bm.ProductInfo.BaseMaxSize)
+			//bm.PriceSteps = float64(bm.ProductInfo.BaseMaxSize)
 		}
 		bm.ForceAutoScroll()
 	} else if key == glfw.KeyUp && action == glfw.Press {
@@ -191,17 +207,17 @@ var trades map[string]*opengl_trades.Trades
 var bookmaps map[string]*opengl_bookmap.Bookmap
 
 var ActiveProduct string
+var ActivePlatform string
+var infos []*product_info.Info
 
 func main() {
 	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
-	flag.StringVar(&ActiveProduct, "pair", "BTC-USDT", "gdax Product ID")
+	flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp-Binance", "Active Platform")
 	flag.Parse()
 
-	/*
-		go func() {
-			log.Println(http.ListenAndServe("localhost:6060", nil))
-		}()
-	*/
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 
 	if err := glfw.Init(); err != nil {
 		log.Fatalln("failed to initialize glfw:", err)
@@ -247,25 +263,52 @@ func main() {
 	w, h := window.GetFramebufferSize()
 	SetupPerspective(w, h, program)
 
+	path := "orderbooks.db"
+	if os.Getenv("DB_PATH") != "" {
+		path = os.Getenv("DB_PATH")
+	}
+	db := util.OpenDB(path, []string{}, false)
+
 	//bookUpdated := make(chan string, 1024)
 	//tradesUpdated := make(chan string)
-	//gdax := gdax_websocket.New(nil, nil)
-	gdax := binance_websocket.New(nil, nil)
-	go gdax.Run()
+	infos = make([]*product_info.Info, 0)
+
+	if strings.Contains(ActivePlatform, "GDAX") {
+		ws := gdax_websocket.New(db, nil, nil)
+		go ws.Run()
+		for _, info := range ws.Infos {
+			infos = append(infos, info)
+		}
+		ActiveProduct = infos[0].DatabaseKey
+	}
+	if strings.Contains(ActivePlatform, "Bitstamp") {
+		ws := bitstamp_websocket.New(db, nil, nil)
+		go ws.Run()
+		for _, info := range ws.Infos {
+			infos = append(infos, info)
+		}
+		ActiveProduct = infos[0].DatabaseKey
+	}
+	if strings.Contains(ActivePlatform, "Binance") {
+		ws := binance_websocket.New(db, nil, nil)
+		go ws.Run()
+		for _, info := range ws.Infos {
+			infos = append(infos, info)
+		}
+		ActiveProduct = infos[0].DatabaseKey
+	}
 
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
 	trades = map[string]*opengl_trades.Trades{}
 
 	padding := 10.0
 	x := padding
-	for _, name := range gdax.Products {
-		info := gdax.GetBook(name).ProductInfo
-		bookmaps[name] = opengl_bookmap.New(program, 1000, 700, x, info, gdax.DB)
+	for _, info := range infos {
+		bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, 1000, 700, x, *info, db)
 	}
 	x += bookmaps[ActiveProduct].Texture.Width + padding
-	for _, name := range gdax.Products {
-		info := gdax.GetBook(name).ProductInfo
-		trades[name] = opengl_trades.New(program, bookmaps[name], info, 700, x)
+	for _, info := range infos {
+		trades[info.DatabaseKey] = opengl_trades.New(program, bookmaps[info.DatabaseKey], *info, 700, x)
 	}
 	x += trades[ActiveProduct].Texture.Width + padding
 
@@ -286,11 +329,11 @@ func main() {
 		case <-halfsecond.C:
 			trades[ActiveProduct].Render()
 		case <-second.C:
-			for _, name := range gdax.Products {
-				if ActiveProduct == name {
-					bookmaps[name].Render()
+			for _, info := range infos {
+				if ActiveProduct == info.DatabaseKey {
+					bookmaps[info.DatabaseKey].Render()
 				} else {
-					bookmaps[name].Progress()
+					bookmaps[info.DatabaseKey].Progress()
 				}
 			}
 		case <-redrawChan:

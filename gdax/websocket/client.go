@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/lian/gdax-bookmap/gdax/orderbook"
+	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	"github.com/lian/gdax-bookmap/util"
 )
 
@@ -27,37 +27,35 @@ type Client struct {
 	LastDiff      time.Time
 	LastDiffSeq   uint64
 	BatchWrite    map[string]*util.BookBatchWrite
+	Infos         []*product_info.Info
 }
 
-func New(bookUpdated, tradesUpdated chan string) *Client {
+func New(db *bolt.DB, bookUpdated, tradesUpdated chan string) *Client {
 	c := &Client{
 		BookUpdated:   bookUpdated,
 		TradesUpdated: tradesUpdated,
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
-		dbEnabled:     true,
 		BatchWrite:    map[string]*util.BookBatchWrite{},
+		DB:            db,
+		Infos:         []*product_info.Info{},
+	}
+	if c.DB != nil {
+		c.dbEnabled = true
 	}
 
-	products := []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}
-	//products := []string{"BTC-USD"}
-
+	//products := []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}
+	products := []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"}
 	for _, name := range products {
 		c.AddProduct(name)
 	}
 
-	path := "orderbooks.db"
-	if os.Getenv("DB_PATH") != "" {
-		path = os.Getenv("DB_PATH")
-	}
-
 	if c.dbEnabled {
 		buckets := []string{}
-		for _, name := range products {
-			info := orderbook.FetchProductInfo(name)
+		for _, info := range c.Infos {
 			buckets = append(buckets, info.DatabaseKey)
 		}
-		c.DB = util.OpenDB(path, buckets, false)
+		util.CreateBucketsDB(c.DB, buckets)
 	}
 
 	return c
@@ -71,6 +69,9 @@ func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.Books[name] = orderbook.New(name)
 	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
+	info := orderbook.FetchProductInfo(name)
+	c.Infos = append(c.Infos, &info)
+
 	if c.TradesUpdated != nil {
 		c.Books[name].TradesUpdated = c.TradesUpdated
 	}

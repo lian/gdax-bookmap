@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
 	"github.com/lian/gdax-bookmap/binance/orderbook"
+	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	"github.com/lian/gdax-bookmap/util"
 )
 
@@ -26,36 +26,34 @@ type Client struct {
 	DB          *bolt.DB
 	dbEnabled   bool
 	BatchWrite  map[string]*util.BookBatchWrite
+	Infos       []*product_info.Info
 }
 
-func New(bookUpdated, tradesUpdated chan string) *Client {
+func New(db *bolt.DB, bookUpdated, tradesUpdated chan string) *Client {
 	c := &Client{
 		Products:   []string{},
 		Books:      map[string]*orderbook.Book{},
-		dbEnabled:  true,
 		BatchWrite: map[string]*util.BookBatchWrite{},
+		DB:         db,
+		Infos:      []*product_info.Info{},
+	}
+	if c.DB != nil {
+		c.dbEnabled = true
 	}
 
 	// https://api.binance.com/api/v1/exchangeInfo
 
 	products := []string{"BTC-USDT"}
-
 	for _, name := range products {
 		c.AddProduct(name)
 	}
 
-	path := "orderbooks.db"
-	if os.Getenv("DB_PATH") != "" {
-		path = os.Getenv("DB_PATH")
-	}
-
 	if c.dbEnabled {
 		buckets := []string{}
-		for _, name := range products {
-			info := orderbook.FetchProductInfo(name)
+		for _, info := range c.Infos {
 			buckets = append(buckets, info.DatabaseKey)
 		}
-		c.DB = util.OpenDB(path, buckets, false)
+		util.CreateBucketsDB(c.DB, buckets)
 	}
 
 	return c
@@ -70,6 +68,7 @@ func (c *Client) AddProduct(name string) {
 	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
 	book := orderbook.New(name)
 	info := orderbook.FetchProductInfo(name)
+	c.Infos = append(c.Infos, &info)
 	a, b := streamNames(strings.ToLower(info.ID))
 	c.Books[a] = book
 	c.Books[b] = book

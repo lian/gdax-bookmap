@@ -15,6 +15,14 @@ func OpenDB(path string, buckets []string, readOnly bool) *bolt.DB {
 		log.Fatal(err)
 	}
 
+	if len(buckets) > 0 {
+		CreateBucketsDB(db, buckets)
+	}
+
+	return db
+}
+
+func CreateBucketsDB(db *bolt.DB, buckets []string) {
 	db.Update(func(tx *bolt.Tx) error {
 		for _, name := range buckets {
 			_, err := tx.CreateBucketIfNotExists([]byte(name))
@@ -24,8 +32,6 @@ func OpenDB(path string, buckets []string, readOnly bool) *bolt.DB {
 		}
 		return nil
 	})
-
-	return db
 }
 
 func NumDecPlaces(v float64) int {
