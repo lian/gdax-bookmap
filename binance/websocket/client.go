@@ -194,6 +194,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 	}
 
 	eventTime := time.Unix(0, int64(event.EventTime)*int64(time.Millisecond))
+	var trade *orderbook.Trade
 
 	switch event.EventType {
 	case "depthUpdate":
@@ -211,51 +212,71 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 		for _, d := range depthUpdate.Bids {
 			data := d.([]interface{})
 			price, _ := strconv.ParseFloat(data[0].(string), 64)
-			quantity, _ := strconv.ParseFloat(data[1].(string), 64)
-			book.UpdateBidLevel(eventTime, price, quantity)
+			size, _ := strconv.ParseFloat(data[1].(string), 64)
+			book.UpdateBidLevel(eventTime, price, size)
 		}
 
 		for _, d := range depthUpdate.Asks {
 			data := d.([]interface{})
 			price, _ := strconv.ParseFloat(data[0].(string), 64)
-			quantity, _ := strconv.ParseFloat(data[1].(string), 64)
-			book.UpdateAskLevel(eventTime, price, quantity)
-		}
-
-		if c.dbEnabled {
-			batch := c.BatchWrite[book.ID]
-			now := time.Now()
-
-			if batch.NextSync(now) {
-				fmt.Println("STORE SYNC", book.ID, batch.Count)
-				c.WriteDB(now, book, PackSync(book))
-			} else {
-				c.WriteDB(now, book, PackDiff(&depthUpdate))
-			}
+			size, _ := strconv.ParseFloat(data[1].(string), 64)
+			book.UpdateAskLevel(eventTime, price, size)
 		}
 
 	case "aggTrade":
-		var trade PacketAggTrade
-		if err := json.Unmarshal(raw, &trade); err != nil {
+		var data PacketAggTrade
+		if err := json.Unmarshal(raw, &data); err != nil {
 			log.Println("PacketDepthUpdate-parse:", err)
 			return
 		}
 
-		price, _ := strconv.ParseFloat(trade.Price, 64)
-		quantity, _ := strconv.ParseFloat(trade.Quantity, 64)
+		price, _ := strconv.ParseFloat(data.Price, 64)
+		size, _ := strconv.ParseFloat(data.Quantity, 64)
 
 		side := book.GetSide(price)
-		book.AddTrade(eventTime, side, price, quantity)
-
-		if c.dbEnabled {
-			now := time.Now()
-			c.WriteDB(now, book, PackTrade(side, price, quantity))
-		}
+		book.AddTrade(eventTime, side, price, size)
+		trade = book.Trades[len(book.Trades)-1]
 
 	default:
 		fmt.Println("unkown event", book.ID, event.EventType, string(raw))
 		return
 	}
+
+	if c.dbEnabled {
+		batch := c.BatchWrite[book.ID]
+		now := time.Now()
+		if trade != nil {
+			c.WriteDB(now, book, PackTrade(trade))
+		}
+
+		if batch.NextSync(now) {
+			fmt.Println("STORE SYNC", book.ID, batch.Count)
+			c.WriteSync(batch, book, now)
+		} else {
+			if batch.NextDiff(now) {
+				//fmt.Println("STORE DIFF", book.ID, batch.Count)
+				c.WriteDiff(batch, book, now)
+			}
+		}
+	}
+}
+
+func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
+	book.FixBookLevels() // TODO fix/remove
+	diff := book.Diff
+	if len(diff.Bid) != 0 || len(diff.Ask) != 0 {
+		pkt := PackDiff(batch.LastDiffSeq, book.Sequence, diff)
+		c.WriteDB(now, book, pkt)
+		book.ResetDiff()
+		batch.LastDiffSeq = book.Sequence + 1
+	}
+}
+
+func (c *Client) WriteSync(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
+	book.FixBookLevels() // TODO fix/remove
+	c.WriteDB(now, book, PackSync(book))
+	book.ResetDiff()
+	batch.LastDiffSeq = book.Sequence + 1
 }
 
 func (c *Client) Run() {

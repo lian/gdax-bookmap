@@ -3,24 +3,18 @@ package websocket
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 
 	"github.com/lian/gdax-bookmap/gdax/orderbook"
-)
-
-const (
-	SyncPacket  uint8 = iota
-	DiffPacket  uint8 = iota
-	TradePacket uint8 = iota
+	db_orderbook "github.com/lian/gdax-bookmap/orderbook"
 )
 
 func PackUnixNanoKey(nano int64) []byte {
-	return []byte(fmt.Sprintf("%d", nano))
+	return db_orderbook.PackUnixNanoKey(nano)
 }
 
 func PackDiff(first, last uint64, diff *orderbook.BookLevelDiff) []byte {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, DiffPacket)
+	binary.Write(buf, binary.LittleEndian, db_orderbook.DiffPacket)
 	binary.Write(buf, binary.LittleEndian, uint64(first)) // sequence
 	binary.Write(buf, binary.LittleEndian, uint64(first)) // first
 	binary.Write(buf, binary.LittleEndian, uint64(last))  // last
@@ -42,7 +36,7 @@ func PackDiff(first, last uint64, diff *orderbook.BookLevelDiff) []byte {
 
 func PackSync(book *orderbook.Book) []byte {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, SyncPacket)
+	binary.Write(buf, binary.LittleEndian, db_orderbook.SyncPacket)
 	binary.Write(buf, binary.LittleEndian, uint64(book.Sequence))
 
 	binary.Write(buf, binary.LittleEndian, uint64(len(book.Bid)))
@@ -70,7 +64,7 @@ func PackSync(book *orderbook.Book) []byte {
 
 func PackTrade(trade *orderbook.Order) []byte {
 	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.LittleEndian, TradePacket)
+	binary.Write(buf, binary.LittleEndian, db_orderbook.TradePacket)
 	binary.Write(buf, binary.LittleEndian, uint64(0))         // seq
 	binary.Write(buf, binary.LittleEndian, uint8(trade.Side)) // side
 	binary.Write(buf, binary.LittleEndian, trade.Price)       // price

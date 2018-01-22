@@ -6,23 +6,11 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"strconv"
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/lian/gdax-bookmap/binance/websocket"
 	"github.com/lian/gdax-bookmap/orderbook"
 )
-
-func UnpackTimeKey(key []byte) time.Time {
-	i, _ := strconv.ParseInt(string(key), 10, 64)
-	t := time.Unix(0, i)
-	return t
-}
-
-func PackTimeKey(t time.Time) []byte {
-	return []byte(fmt.Sprintf("%d", t.UnixNano()))
-}
 
 type Graph struct {
 	CurrentKey       []byte
@@ -89,7 +77,7 @@ func (g *Graph) SetStart(start time.Time) bool {
 
 	g.Book = book
 	g.CurrentKey = startKey
-	g.CurrentTime = UnpackTimeKey(startKey)
+	g.CurrentTime = orderbook.UnpackTimeKey(startKey)
 	g.Timeslots = make([]*TimeSlot, 0, g.SlotCount)
 
 	return true
@@ -193,15 +181,15 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 				break
 			}
 
-			t := UnpackTimeKey(key)
+			t := orderbook.UnpackTimeKey(key)
 
 			isTrade = false
-			seq := websocket.UnpackSequence(buf)
+			seq := orderbook.UnpackSequence(buf)
 			if seq == 0 {
 				isTrade = true
 			} else if seq != nextSequence {
-				fmt.Println("graph out of sequence", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
-				pkt := websocket.UnpackPacket(buf)
+				fmt.Println("graph out of sequence", string(g.CurrentKey), string(key), seq, nextSequence, orderbook.UnpackPacket(buf)["type"])
+				pkt := orderbook.UnpackPacket(buf)
 				if pkt["type"].(string) == "sync" {
 					fmt.Println("found sync packet", seq, nextSequence)
 					g.Book.Process(t, pkt)
@@ -216,14 +204,14 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 			}
 
 			if t.After(curSlotEnd) {
-				//fmt.Println("in sequence defer", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
+				//fmt.Println("in sequence defer", string(g.CurrentKey), string(key), seq, nextSequence, orderbook.UnpackPacket(buf)["type"])
 				more = true
 				jumpNext = true
 				g.CurrentTime = t
 				break
 			} else {
-				//fmt.Println("in sequence process", string(g.CurrentKey), string(key), seq, nextSequence, websocket.UnpackPacket(buf)["type"])
-				g.Book.Process(t, websocket.UnpackPacket(buf))
+				//fmt.Println("in sequence process", string(g.CurrentKey), string(key), seq, nextSequence, orderbook.UnpackPacket(buf)["type"])
+				g.Book.Process(t, orderbook.UnpackPacket(buf))
 				if !isTrade {
 					nextSequence = g.Book.Book.Sequence + 1
 				}
@@ -233,7 +221,7 @@ func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
 
 		if !bytes.Equal(g.LastProcessedKey, g.CurrentKey) {
 			g.CurrentKey = []byte(string(g.LastProcessedKey))
-			g.CurrentTime = UnpackTimeKey(g.CurrentKey)
+			g.CurrentTime = orderbook.UnpackTimeKey(g.CurrentKey)
 			slot.Stats = g.Book.Book.StatsCopy()
 		} else {
 			if jumpNext {
@@ -260,7 +248,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 	//fmt.Println("Begin FetchBook")
 	var err error
 	book := orderbook.NewDbBook(g.ProductID)
-	startKey := PackTimeKey(from)
+	startKey := orderbook.PackTimeKey(from)
 
 	g.DB.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket([]byte(g.ProductID)).Cursor()
@@ -276,16 +264,16 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 		}
 
 		// apply sync packet
-		pkt := websocket.UnpackPacket(buf)
-		book.Process(UnpackTimeKey(key), pkt)
+		pkt := orderbook.UnpackPacket(buf)
+		book.Process(orderbook.UnpackTimeKey(key), pkt)
 		g.LastProcessedKey = []byte(string(key))
 
 		// walk and fill book until startKey
 		for key, buf = c.Next(); key != nil; key, buf = c.Next() {
 			if bytes.Compare(key, startKey) < 0 {
 				startKey = key
-				pkt := websocket.UnpackPacket(buf)
-				book.Process(UnpackTimeKey(key), pkt)
+				pkt := orderbook.UnpackPacket(buf)
+				book.Process(orderbook.UnpackTimeKey(key), pkt)
 				g.LastProcessedKey = []byte(string(key))
 			} else {
 				break
