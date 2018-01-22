@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
+	"github.com/lian/gdax-bookmap/util"
 )
 
 var CachedInfo map[string]product_info.Info
@@ -37,7 +36,7 @@ func FetchAllProductInfo() {
 	for _, product := range data {
 		product.Platform = "GDAX"
 		product.DatabaseKey = fmt.Sprintf("GDAX-%s-%s", product.BaseCurrency, product.QuoteCurrency)
-		product.FloatFormat = fmt.Sprintf("%%.%df", NumDecPlaces(float64(product.QuoteIncrement)))
+		product.FloatFormat = fmt.Sprintf("%%.%df", util.NumDecPlaces(float64(product.QuoteIncrement)))
 		CachedInfo[product.ID] = product
 	}
 }
@@ -47,13 +46,4 @@ func FetchProductInfo(id string) product_info.Info {
 		return info
 	}
 	return product_info.Info{}
-}
-
-func NumDecPlaces(v float64) int {
-	s := strconv.FormatFloat(v, 'f', -1, 64)
-	i := strings.IndexByte(s, '.')
-	if i > -1 {
-		return len(s) - i - 1
-	}
-	return 0
 }

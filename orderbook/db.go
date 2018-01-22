@@ -69,7 +69,7 @@ func (b *DbBook) Process(t time.Time, data map[string]interface{}) bool {
 	switch data["type"].(string) {
 	case "diff":
 		if err := b.UpdateSync(book, data["first"].(uint64), data["last"].(uint64)); err != nil {
-			fmt.Println(err)
+			fmt.Println("DbBook.UpdateSync", book.ID, err)
 			return false
 		}
 

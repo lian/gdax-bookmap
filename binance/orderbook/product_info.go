@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
+	"github.com/lian/gdax-bookmap/util"
 )
 
 var CachedInfo map[string]product_info.Info
@@ -56,7 +56,7 @@ func FetchAllProductInfo() {
 						t, _ = strconv.ParseFloat(fi["maxPrice"].(string), 64)
 						info.BaseMaxSize = product_info.FloatString(t)
 						info.QuoteIncrement = info.BaseMinSize
-						info.FloatFormat = fmt.Sprintf("%%.%df", NumDecPlaces(float64(info.QuoteIncrement)))
+						info.FloatFormat = fmt.Sprintf("%%.%df", util.NumDecPlaces(float64(info.QuoteIncrement)))
 						CachedInfo[info.DisplayName] = info
 						break
 					}
@@ -72,13 +72,4 @@ func FetchProductInfo(id string) product_info.Info {
 		return info
 	}
 	return product_info.Info{}
-}
-
-func NumDecPlaces(v float64) int {
-	s := strconv.FormatFloat(v, 'f', -1, 64)
-	i := strings.IndexByte(s, '.')
-	if i > -1 {
-		return len(s) - i - 1
-	}
-	return 0
 }

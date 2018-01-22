@@ -15,6 +15,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
 	"github.com/lian/gdax-bookmap/binance/orderbook"
+	"github.com/lian/gdax-bookmap/util"
 )
 
 type Client struct {
@@ -24,14 +25,15 @@ type Client struct {
 	ConnectedAt time.Time
 	DB          *bolt.DB
 	dbEnabled   bool
-	LastSync    time.Time
+	BatchWrite  map[string]*util.BookBatchWrite
 }
 
 func New(bookUpdated, tradesUpdated chan string) *Client {
 	c := &Client{
-		Products:  []string{},
-		Books:     map[string]*orderbook.Book{},
-		dbEnabled: true,
+		Products:   []string{},
+		Books:      map[string]*orderbook.Book{},
+		dbEnabled:  true,
+		BatchWrite: map[string]*util.BookBatchWrite{},
 	}
 
 	// https://api.binance.com/api/v1/exchangeInfo
@@ -53,7 +55,7 @@ func New(bookUpdated, tradesUpdated chan string) *Client {
 			info := orderbook.FetchProductInfo(name)
 			buckets = append(buckets, info.DatabaseKey)
 		}
-		c.DB = OpenDB(path, buckets, false)
+		c.DB = util.OpenDB(path, buckets, false)
 	}
 
 	return c
@@ -65,6 +67,7 @@ func streamNames(name string) (string, string) {
 
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
+	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
 	book := orderbook.New(name)
 	info := orderbook.FetchProductInfo(name)
 	a, b := streamNames(strings.ToLower(info.ID))
@@ -152,29 +155,36 @@ func (c *Client) UpdateSync(book *orderbook.Book, first, last uint64) error {
 }
 
 func (c *Client) WriteDB(now time.Time, book *orderbook.Book, buf []byte) {
-	c.DB.Update(func(tx *bolt.Tx) error {
-		var err error
-		var key []byte
-		b := tx.Bucket([]byte(book.ProductInfo.DatabaseKey))
-		b.FillPercent = 0.9
+	batch := c.BatchWrite[book.ID]
+	batch.AddChunk(&util.BatchChunk{Time: now, Data: buf})
 
-		nano := now.UnixNano()
-		// windows system clock resolution https://github.com/golang/go/issues/8687
-		for {
-			key = PackUnixNanoKey(nano)
-			if b.Get(key) == nil {
-				break
-			} else {
-				nano += 1
+	if batch.FlushBatch(now) {
+		c.DB.Update(func(tx *bolt.Tx) error {
+			var err error
+			var key []byte
+			b := tx.Bucket([]byte(book.ProductInfo.DatabaseKey))
+			b.FillPercent = 0.9
+			for _, chunk := range batch.Batch {
+				nano := chunk.Time.UnixNano()
+				// windows system clock resolution https://github.com/golang/go/issues/8687
+				for {
+					key = PackUnixNanoKey(nano)
+					if b.Get(key) == nil {
+						break
+					} else {
+						nano += 1
+					}
+				}
+				err = b.Put(key, chunk.Data)
+				if err != nil {
+					fmt.Println("HandleMessage DB Error", err)
+				}
 			}
-		}
-
-		err = b.Put(key, buf)
-		if err != nil {
-			fmt.Println("WriteDB Error", err)
-		}
-		return err
-	})
+			return err
+		})
+		//fmt.Println("flush batch chunks", len(batch.Batch))
+		batch.Clear()
+	}
 }
 
 func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
@@ -214,9 +224,11 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 		}
 
 		if c.dbEnabled {
+			batch := c.BatchWrite[book.ID]
 			now := time.Now()
-			if time.Since(c.LastSync) > (time.Minute * 1) {
-				c.LastSync = now
+
+			if batch.NextSync(now) {
+				fmt.Println("STORE SYNC", book.ID, batch.Count)
 				c.WriteDB(now, book, PackSync(book))
 			} else {
 				c.WriteDB(now, book, PackDiff(&depthUpdate))

@@ -57,8 +57,7 @@ func (c *Client) SyncBook(book *orderbook.Book) error {
 
 		if c.dbEnabled {
 			now := time.Now()
-			c.LastSync = now
-			fmt.Println("write init sync")
+			fmt.Println("STORE INIT SYNC", book.ID)
 			c.WriteDB(now, book, PackSync(book))
 		}
 	}

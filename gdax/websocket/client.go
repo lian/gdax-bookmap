@@ -12,6 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/lian/gdax-bookmap/gdax/orderbook"
+	"github.com/lian/gdax-bookmap/util"
 )
 
 type Client struct {
@@ -25,7 +26,7 @@ type Client struct {
 	LastSync      time.Time
 	LastDiff      time.Time
 	LastDiffSeq   uint64
-	BatchWrite    map[string]*BookBatchWrite
+	BatchWrite    map[string]*util.BookBatchWrite
 }
 
 func New(bookUpdated, tradesUpdated chan string) *Client {
@@ -35,7 +36,7 @@ func New(bookUpdated, tradesUpdated chan string) *Client {
 		Products:      []string{},
 		Books:         map[string]*orderbook.Book{},
 		dbEnabled:     true,
-		BatchWrite:    map[string]*BookBatchWrite{},
+		BatchWrite:    map[string]*util.BookBatchWrite{},
 	}
 
 	products := []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}
@@ -56,7 +57,7 @@ func New(bookUpdated, tradesUpdated chan string) *Client {
 			info := orderbook.FetchProductInfo(name)
 			buckets = append(buckets, info.DatabaseKey)
 		}
-		c.DB = OpenDB(path, buckets, false)
+		c.DB = util.OpenDB(path, buckets, false)
 	}
 
 	return c
@@ -69,7 +70,7 @@ func (c *Client) GetBook(id string) *orderbook.Book {
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.Books[name] = orderbook.New(name)
-	c.BatchWrite[name] = &BookBatchWrite{Count: 0, Batch: []*BatchChunk{}}
+	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
 	if c.TradesUpdated != nil {
 		c.Books[name].TradesUpdated = c.TradesUpdated
 	}
@@ -96,7 +97,7 @@ type PacketHeader struct {
 
 func (c *Client) WriteDB(now time.Time, book *orderbook.Book, buf []byte) {
 	batch := c.BatchWrite[book.ID]
-	batch.AddChunk(&BatchChunk{Time: now, Data: buf})
+	batch.AddChunk(&util.BatchChunk{Time: now, Data: buf})
 
 	if batch.FlushBatch(now) {
 		c.DB.Update(func(tx *bolt.Tx) error {
@@ -203,7 +204,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, messag
 	}
 }
 
-func (c *Client) WriteDiff(batch *BookBatchWrite, book *orderbook.Book, now time.Time) {
+func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
 	diff := book.Diff
 	if len(diff.Bid) != 0 || len(diff.Ask) != 0 {
 		pkt := PackDiff(batch.LastDiffSeq, book.Sequence, diff)
@@ -213,7 +214,7 @@ func (c *Client) WriteDiff(batch *BookBatchWrite, book *orderbook.Book, now time
 	}
 }
 
-func (c *Client) WriteSync(batch *BookBatchWrite, book *orderbook.Book, now time.Time) {
+func (c *Client) WriteSync(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
 	c.WriteDB(now, book, PackSync(book))
 	book.ResetDiff()
 	batch.LastDiffSeq = book.Sequence + 1
