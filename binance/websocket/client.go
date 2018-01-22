@@ -29,7 +29,7 @@ type Client struct {
 	Infos       []*product_info.Info
 }
 
-func New(db *bolt.DB, bookUpdated, tradesUpdated chan string) *Client {
+func New(db *bolt.DB) *Client {
 	c := &Client{
 		Products:   []string{},
 		Books:      map[string]*orderbook.Book{},
@@ -60,7 +60,8 @@ func New(db *bolt.DB, bookUpdated, tradesUpdated chan string) *Client {
 }
 
 func streamNames(name string) (string, string) {
-	return name + "@depth", name + "@aggTrade"
+	id := strings.ToLower(name)
+	return id + "@depth", id + "@aggTrade"
 }
 
 func (c *Client) AddProduct(name string) {
@@ -69,18 +70,15 @@ func (c *Client) AddProduct(name string) {
 	book := orderbook.New(name)
 	info := orderbook.FetchProductInfo(name)
 	c.Infos = append(c.Infos, &info)
-	a, b := streamNames(strings.ToLower(info.ID))
-	c.Books[a] = book
-	c.Books[b] = book
+	diff_channel, trades_channel := streamNames(info.ID)
+	c.Books[diff_channel] = book
+	c.Books[trades_channel] = book
 }
 
 func (c *Client) Connect() {
 	streams := []string{}
-	for _, name := range c.Products {
-		info := orderbook.FetchProductInfo(name)
-		a, b := streamNames(strings.ToLower(info.ID))
-		streams = append(streams, a)
-		streams = append(streams, b)
+	for channel, _ := range c.Books {
+		streams = append(streams, channel)
 	}
 	url := "wss://stream.binance.com:9443/stream?streams=" + strings.Join(streams, "/")
 
@@ -122,12 +120,12 @@ type PacketAggTrade struct {
 	//Symbol           string `json:"s"`
 	//AggregateTradeID int    `json:"a"`
 	//TradeTime        int    `json:"T"`
+	//BuyMaker      bool   `json:"m"`
+	//Ignore        bool   `json:"M"`
 	Price         string `json:"p"`
 	Quantity      string `json:"q"`
 	FirstUpdateID int    `json:"f"`
 	FinalUpdateID int    `json:"l"`
-	BuyMaker      bool   `json:"m"`
-	Ignore        bool   `json:"M"`
 }
 
 func (c *Client) UpdateSync(book *orderbook.Book, first, last uint64) error {
@@ -252,17 +250,9 @@ func (c *Client) Run() {
 	}
 }
 
-func (c *Client) GetBook(id string) *orderbook.Book {
-	info := orderbook.FetchProductInfo(id)
-	key := strings.ToLower(info.ID) + "@depth"
-	return c.Books[key]
-}
-
 func (c *Client) run() {
 	c.Connect()
 	defer c.Socket.Close()
-
-	initialSync := true
 
 	for {
 		msgType, message, err := c.Socket.ReadMessage()
@@ -272,18 +262,6 @@ func (c *Client) run() {
 		}
 
 		if msgType != websocket.TextMessage {
-			continue
-		}
-
-		if initialSync {
-			for k, book := range c.Books {
-				if strings.Contains(k, "@depth") {
-					if err := c.SyncBook(book); err != nil {
-						fmt.Println("initialSync-error", err)
-					}
-				}
-			}
-			initialSync = false
 			continue
 		}
 
@@ -297,6 +275,11 @@ func (c *Client) run() {
 		var ok bool
 		if book, ok = c.Books[pkt.Stream]; !ok {
 			log.Println("book not found", pkt.Stream)
+			continue
+		}
+
+		if book.Sequence == 0 {
+			c.SyncBook(book)
 			continue
 		}
 

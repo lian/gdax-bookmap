@@ -16,27 +16,25 @@ import (
 )
 
 type Client struct {
-	Products      []string
-	Books         map[string]*orderbook.Book
-	ChannelLookup map[string]string
-	Socket        *websocket.Conn
-	DB            *bolt.DB
-	dbEnabled     bool
-	LastSync      time.Time
-	LastDiff      time.Time
-	LastDiffSeq   uint64
-	BatchWrite    map[string]*util.BookBatchWrite
-	Infos         []*product_info.Info
+	Products    []string
+	Books       map[string]*orderbook.Book
+	Socket      *websocket.Conn
+	DB          *bolt.DB
+	dbEnabled   bool
+	LastSync    time.Time
+	LastDiff    time.Time
+	LastDiffSeq uint64
+	BatchWrite  map[string]*util.BookBatchWrite
+	Infos       []*product_info.Info
 }
 
-func New(db *bolt.DB, bookUpdated, tradesUpdated chan string) *Client {
+func New(db *bolt.DB) *Client {
 	c := &Client{
-		Products:      []string{},
-		Books:         map[string]*orderbook.Book{},
-		ChannelLookup: map[string]string{},
-		BatchWrite:    map[string]*util.BookBatchWrite{},
-		DB:            db,
-		Infos:         []*product_info.Info{},
+		Products:   []string{},
+		Books:      map[string]*orderbook.Book{},
+		BatchWrite: map[string]*util.BookBatchWrite{},
+		DB:         db,
+		Infos:      []*product_info.Info{},
 	}
 
 	if c.DB != nil {
@@ -60,16 +58,15 @@ func New(db *bolt.DB, bookUpdated, tradesUpdated chan string) *Client {
 	return c
 }
 
-func (c *Client) GetBook(id string) *orderbook.Book {
-	return c.Books[id]
-}
-
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
-	c.Books[name] = orderbook.New(name)
 	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
 	info := orderbook.FetchProductInfo(name)
 	c.Infos = append(c.Infos, &info)
+	book := orderbook.New(name)
+	diff_channel, trades_channel := c.GetChannelNames(book)
+	c.Books[diff_channel] = book
+	c.Books[trades_channel] = book
 }
 
 func (c *Client) Connect() {
@@ -82,12 +79,8 @@ func (c *Client) Connect() {
 		log.Fatal("dial:", err)
 	}
 
-	for _, book := range c.Books {
-		a, b := c.GetChannelNames(book)
-		c.ChannelLookup[a] = book.ID
-		c.ChannelLookup[b] = book.ID
-		c.Subscribe(a)
-		c.Subscribe(b)
+	for channel, _ := range c.Books {
+		c.Subscribe(channel)
 	}
 }
 
@@ -112,11 +105,6 @@ type Packet struct {
 
 func (c *Client) UpdateSync(book *orderbook.Book, last uint64) error {
 	seq := book.Sequence
-	/*
-		if book.ID == "BTC-USD" {
-			fmt.Println("UpdateSync", book.ID, seq, last, last < seq)
-		}
-	*/
 
 	if last < seq {
 		return fmt.Errorf("Ignore old messages %d %d", last, seq)
@@ -259,14 +247,11 @@ func (c *Client) run() {
 			continue
 		}
 
+		var ok bool
 		var book *orderbook.Book
-		if id, ok := c.ChannelLookup[pkt.Channel]; ok {
-			if book, ok = c.Books[id]; !ok {
-				log.Println("book not found", pkt.Channel, id)
-				continue
-			}
-		} else {
-			log.Println("book lookup failed", pkt.Channel)
+
+		if book, ok = c.Books[pkt.Channel]; !ok {
+			log.Println("book not found", pkt.Channel)
 			continue
 		}
 

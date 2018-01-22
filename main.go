@@ -274,7 +274,7 @@ func main() {
 	infos = make([]*product_info.Info, 0)
 
 	if strings.Contains(ActivePlatform, "GDAX") {
-		ws := gdax_websocket.New(db, nil, nil)
+		ws := gdax_websocket.New(db)
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -282,7 +282,7 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 	if strings.Contains(ActivePlatform, "Bitstamp") {
-		ws := bitstamp_websocket.New(db, nil, nil)
+		ws := bitstamp_websocket.New(db)
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -290,7 +290,7 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 	if strings.Contains(ActivePlatform, "Binance") {
-		ws := binance_websocket.New(db, nil, nil)
+		ws := binance_websocket.New(db)
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)

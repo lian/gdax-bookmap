@@ -16,29 +16,25 @@ import (
 )
 
 type Client struct {
-	BookUpdated   chan string
-	TradesUpdated chan string
-	Products      []string
-	Books         map[string]*orderbook.Book
-	Socket        *websocket.Conn
-	DB            *bolt.DB
-	dbEnabled     bool
-	LastSync      time.Time
-	LastDiff      time.Time
-	LastDiffSeq   uint64
-	BatchWrite    map[string]*util.BookBatchWrite
-	Infos         []*product_info.Info
+	Products    []string
+	Books       map[string]*orderbook.Book
+	Socket      *websocket.Conn
+	DB          *bolt.DB
+	dbEnabled   bool
+	LastSync    time.Time
+	LastDiff    time.Time
+	LastDiffSeq uint64
+	BatchWrite  map[string]*util.BookBatchWrite
+	Infos       []*product_info.Info
 }
 
-func New(db *bolt.DB, bookUpdated, tradesUpdated chan string) *Client {
+func New(db *bolt.DB) *Client {
 	c := &Client{
-		BookUpdated:   bookUpdated,
-		TradesUpdated: tradesUpdated,
-		Products:      []string{},
-		Books:         map[string]*orderbook.Book{},
-		BatchWrite:    map[string]*util.BookBatchWrite{},
-		DB:            db,
-		Infos:         []*product_info.Info{},
+		Products:   []string{},
+		Books:      map[string]*orderbook.Book{},
+		BatchWrite: map[string]*util.BookBatchWrite{},
+		DB:         db,
+		Infos:      []*product_info.Info{},
 	}
 	if c.DB != nil {
 		c.dbEnabled = true
@@ -71,10 +67,6 @@ func (c *Client) AddProduct(name string) {
 	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
 	info := orderbook.FetchProductInfo(name)
 	c.Infos = append(c.Infos, &info)
-
-	if c.TradesUpdated != nil {
-		c.Books[name].TradesUpdated = c.TradesUpdated
-	}
 }
 
 func (c *Client) Connect() {
