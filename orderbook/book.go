@@ -8,8 +8,11 @@ import (
 )
 
 type BookLevel struct {
-	Price    float64
-	Quantity float64
+	Price       float64
+	Quantity    float64
+	MaxQuantity float64
+	OrderCount  int
+	TradeSize   float64
 }
 
 type Side uint8
@@ -20,7 +23,6 @@ const AskSide Side = 1
 type Trade struct {
 	Price    float64
 	Quantity float64
-	Size     float64 // TODO remove
 	Time     time.Time
 	Side     Side
 }
@@ -40,7 +42,6 @@ type Book struct {
 	Sequence    uint64
 	Synced      bool
 	ProductInfo product_info.Info
-	Stats       *BookMapStats
 }
 
 func New(name string) *Book {
@@ -74,12 +75,14 @@ func (b *Book) UpdateBidLevel(t time.Time, price, quantity float64) {
 		if current.Price == price {
 			if quantity == 0 {
 				// remove
-				b.Bid[i] = b.Bid[len(b.Bid)-1]
-				b.Bid[len(b.Bid)-1] = nil
-				b.Bid = b.Bid[:len(b.Bid)-1]
+				b.Bid[i].Quantity = 0
 			} else {
 				// update
 				b.Bid[i].Quantity = quantity
+				if quantity > b.Bid[i].MaxQuantity {
+					b.Bid[i].MaxQuantity = quantity
+				}
+				b.Bid[i].OrderCount += 1 // remove?
 			}
 			found = true
 			break
@@ -88,7 +91,7 @@ func (b *Book) UpdateBidLevel(t time.Time, price, quantity float64) {
 
 	if !found && quantity != 0 {
 		// add
-		b.Bid = append(b.Bid, &BookLevel{Price: price, Quantity: quantity})
+		b.Bid = append(b.Bid, &BookLevel{Price: price, Quantity: quantity, MaxQuantity: quantity, OrderCount: 1})
 	}
 }
 
@@ -99,12 +102,14 @@ func (b *Book) UpdateAskLevel(t time.Time, price, quantity float64) {
 		if current.Price == price {
 			if quantity == 0 {
 				// remove
-				b.Ask[i] = b.Ask[len(b.Ask)-1]
-				b.Ask[len(b.Ask)-1] = nil
-				b.Ask = b.Ask[:len(b.Ask)-1]
+				b.Ask[i].Quantity = 0
 			} else {
 				// update
 				b.Ask[i].Quantity = quantity
+				if quantity > b.Ask[i].MaxQuantity {
+					b.Ask[i].MaxQuantity = quantity
+				}
+				b.Ask[i].OrderCount += 1 // remove?
 			}
 			found = true
 			break
@@ -113,7 +118,7 @@ func (b *Book) UpdateAskLevel(t time.Time, price, quantity float64) {
 
 	if !found && quantity != 0 {
 		// add
-		b.Ask = append(b.Ask, &BookLevel{Price: price, Quantity: quantity})
+		b.Ask = append(b.Ask, &BookLevel{Price: price, Quantity: quantity, MaxQuantity: quantity, OrderCount: 1})
 	}
 }
 
@@ -129,23 +134,21 @@ func (b *Book) AddTrade(t time.Time, side uint8, price, quantity float64) {
 		b.Trades[len(b.Trades)-1] = nil
 		b.Trades = b.Trades[:len(b.Trades)-1]
 	}
-	trade := &Trade{Price: price, Side: Side(side), Quantity: quantity, Size: quantity, Time: t}
+	trade := &Trade{Price: price, Side: Side(side), Quantity: quantity, Time: t}
 	b.Trades = append(b.Trades, trade)
 
-	if b.Stats != nil {
-		if trade.Side == BidSide {
-			for _, state := range b.Stats.Bid {
-				if state.Price == price {
-					state.TradeSize += quantity
-					break
-				}
+	if trade.Side == BidSide {
+		for _, level := range b.Bid {
+			if level.Price == price {
+				level.TradeSize += quantity
+				break
 			}
-		} else {
-			for _, state := range b.Stats.Ask {
-				if state.Price == price {
-					state.TradeSize += quantity
-					break
-				}
+		}
+	} else {
+		for _, level := range b.Ask {
+			if level.Price == price {
+				level.TradeSize += quantity
+				break
 			}
 		}
 	}
@@ -188,28 +191,26 @@ func (b *Book) Clear() {
 }
 
 func (b *Book) StateAsStats() *BookMapStatsCopy {
-	b.Sort()
+	//b.Sort() // called by dbBook
 
 	stats := &BookMapStatsCopy{
 		Bid: make([]OrderState, 0, len(b.Bid)),
 		Ask: make([]OrderState, 0, len(b.Ask)),
 	}
 
-	for i, _ := range b.Bid {
-		//for i := len(b.Bid) - 1; i >= 0; i-- {
-		level := b.Bid[i]
-		if level == nil { // fix: duo to unsafe access in opengl/orderbook/book.go
+	for _, level := range b.Bid {
+		if level.Quantity == 0 {
 			continue
 		}
-		bid := OrderState{Price: level.Price, Size: level.Quantity, OrderCount: 1}
+		bid := OrderState{Price: level.Price, Size: level.Quantity, OrderCount: level.OrderCount}
 		stats.Bid = append(stats.Bid, bid)
 	}
 
 	for _, level := range b.Ask {
-		if level == nil { // fix: duo to unsafe access in opengl/orderbook/book.go
+		if level.Quantity == 0 {
 			continue
 		}
-		ask := OrderState{Price: level.Price, Size: level.Quantity, OrderCount: 1}
+		ask := OrderState{Price: level.Price, Size: level.Quantity, OrderCount: level.OrderCount}
 		stats.Ask = append(stats.Ask, ask)
 	}
 
@@ -217,45 +218,47 @@ func (b *Book) StateAsStats() *BookMapStatsCopy {
 }
 
 func (b *Book) ResetStats() {
-	b.Stats = nil
-	b.Stats = &BookMapStats{
-		Bid: OrderStateList{},
-		Ask: OrderStateList{},
-	}
+	bid := make([]*BookLevel, 0, len(b.Bid))
+	ask := make([]*BookLevel, 0, len(b.Ask))
 
 	for _, level := range b.Bid {
-		bid := &OrderState{Price: level.Price, Size: level.Quantity}
-		b.Stats.Bid = append(b.Stats.Bid, bid)
+		level.MaxQuantity = level.Quantity
+		level.TradeSize = 0
+		if level.Quantity != 0 {
+			bid = append(bid, level)
+		}
 	}
 
 	for _, level := range b.Ask {
-		ask := &OrderState{Price: level.Price, Size: level.Quantity}
-		b.Stats.Ask = append(b.Stats.Ask, ask)
+		level.MaxQuantity = level.Quantity
+		level.TradeSize = 0
+		if level.Quantity != 0 {
+			ask = append(ask, level)
+		}
 	}
+
+	b.Bid = bid
+	b.Ask = ask
 }
 
-// TODO: improve. prolly memory/gc hungy
 func (b *Book) StatsCopy() *BookMapStatsCopy {
-	b.Stats.Sort()
-
-	s := &BookMapStatsCopy{
-		Bid: make([]OrderState, 0, len(b.Stats.Bid)),
-		Ask: make([]OrderState, 0, len(b.Stats.Ask)),
+	stats := &BookMapStatsCopy{
+		Bid: make([]OrderState, 0, len(b.Bid)),
+		Ask: make([]OrderState, 0, len(b.Ask)),
 	}
 
-	for _, state := range b.Stats.Bid {
-		s.Bid = append(s.Bid, *state)
+	for _, level := range b.Bid {
+		bid := OrderState{Price: level.Price, Size: level.MaxQuantity, OrderCount: level.OrderCount, TradeSize: level.TradeSize}
+		stats.Bid = append(stats.Bid, bid)
 	}
 
-	for _, state := range b.Stats.Ask {
-		s.Ask = append(s.Ask, *state)
+	for _, level := range b.Ask {
+		ask := OrderState{Price: level.Price, Size: level.MaxQuantity, OrderCount: level.OrderCount, TradeSize: level.TradeSize}
+		stats.Ask = append(stats.Ask, ask)
 	}
 
-	return s
+	return stats
 }
-
-//func (b *Book) ResetStats() {
-//}
 
 type OrderState struct {
 	Price      float64
@@ -264,23 +267,7 @@ type OrderState struct {
 	TradeSize  float64
 }
 
-type OrderStateList []*OrderState
-
-func (a OrderStateList) Len() int           { return len(a) }
-func (a OrderStateList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a OrderStateList) Less(i, j int) bool { return a[i].Price < a[j].Price }
-
-type BookMapStats struct {
-	Bid OrderStateList
-	Ask OrderStateList
-}
-
 type BookMapStatsCopy struct {
 	Bid []OrderState
 	Ask []OrderState
-}
-
-func (stats *BookMapStats) Sort() {
-	sort.Sort(stats.Bid)
-	sort.Sort(stats.Ask)
 }

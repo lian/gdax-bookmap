@@ -15,8 +15,7 @@ import (
 	"github.com/go-gl/mathgl/mgl32"
 	"github.com/lian/gonky/shader"
 
-	"net/http"
-	_ "net/http/pprof"
+	//_ "net/http/pprof"
 
 	binance_websocket "github.com/lian/gdax-bookmap/binance/websocket"
 	bitstamp_websocket "github.com/lian/gdax-bookmap/bitstamp/websocket"
@@ -213,11 +212,14 @@ var infos []*product_info.Info
 func main() {
 	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
 	flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp-Binance", "Active Platform")
+	//flag.StringVar(&ActivePlatform, "platform", "Bitstamp", "Active Platform")
 	flag.Parse()
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
+	/*
+		go func() {
+			log.Println(http.ListenAndServe("localhost:6060", nil))
+		}()
+	*/
 
 	if err := glfw.Init(); err != nil {
 		log.Fatalln("failed to initialize glfw:", err)

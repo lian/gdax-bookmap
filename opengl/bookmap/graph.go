@@ -13,23 +13,21 @@ import (
 )
 
 type Graph struct {
-	CurrentKey       []byte
-	CurrentTime      time.Time
-	Book             *orderbook.DbBook
-	Timeslots        []*TimeSlot
-	Width            int
-	SlotWidth        int
-	SlotCount        int
-	SlotSteps        int
-	Start            time.Time
-	End              time.Time
-	DB               *bolt.DB
-	ProductID        string
-	LastProcessedKey []byte
-	Red              color.RGBA
-	Green            color.RGBA
-	Bg1              color.RGBA
-	Fg1              color.RGBA
+	CurrentTime time.Time
+	Book        *orderbook.DbBook
+	Timeslots   []*TimeSlot
+	Width       int
+	SlotWidth   int
+	SlotCount   int
+	SlotSteps   int
+	Start       time.Time
+	End         time.Time
+	DB          *bolt.DB
+	ProductID   string
+	Red         color.RGBA
+	Green       color.RGBA
+	Bg1         color.RGBA
+	Fg1         color.RGBA
 }
 
 func NewGraph(db *bolt.DB, productID string, width, slotWidth, slotSteps int) *Graph {
@@ -66,18 +64,15 @@ func (g *Graph) ClearSlotRows() {
 }
 
 func (g *Graph) SetStart(start time.Time) bool {
+	var err error
 	g.Start = RoundTime(start, g.SlotSteps)
 
-	startKey, book, err := g.FetchBook(g.Start)
+	g.CurrentTime, g.Book, err = g.FetchBook(g.Start)
 	if err != nil {
 		g.Book = nil
 		fmt.Println("ERROR", "SetStart", err)
 		return false
 	}
-
-	g.Book = book
-	g.CurrentKey = startKey
-	g.CurrentTime = orderbook.UnpackTimeKey(startKey)
 	g.Timeslots = make([]*TimeSlot, 0, g.SlotCount)
 
 	return true
@@ -88,43 +83,138 @@ func (g *Graph) SetEnd(end time.Time) bool {
 		fmt.Println("ERROR", "SetEnd", "end time before start time", g.Start, end)
 		return false
 	}
-	//fmt.Println("Begin SetEnd", g.Start, end)
 
 	g.End = end
-	count := 0
+	g.GenerateTimeslots(end)
+	g.ProcessTimeslots()
 
-	start := time.Now()
+	return true
+}
 
-	for {
-		count += 1
-		newSlot, new, more, err := g.AddTimeslots(end)
+func (g *Graph) GenerateTimeslots(end time.Time) {
+	end = RoundTime(end, g.SlotSteps)
 
-		if err != nil {
-			fmt.Println("ERROR", "SetEnd", err)
-			break
-		}
-
-		if new {
-			//fmt.Println("added new slot")
-			if len(g.Timeslots) >= g.SlotCount {
-				// remove and free first item
-				copy(g.Timeslots[0:], g.Timeslots[1:])
-				g.Timeslots[len(g.Timeslots)-1] = newSlot
-			} else {
-				g.Timeslots = append(g.Timeslots, newSlot)
-			}
-		} else {
-			//fmt.Println("updated slot")
-		}
-
-		if !more || (time.Now().Sub(start).Seconds() >= 1.0) {
-			//fmt.Println("done updating slots")
-			break
-		}
+	//lastStart := end.Add(time.Duration(-g.SlotSteps) * time.Second)
+	lastStart := g.Start
+	if len(g.Timeslots) != 0 {
+		lastStart = g.Timeslots[len(g.Timeslots)-1].To
 	}
 
-	//fmt.Println("End SetEnd", count, len(g.Timeslots), g.SlotCount, string(g.CurrentKey), g.Start, end)
-	return true
+	var slot *TimeSlot
+	for {
+		if lastStart == end {
+			break
+		}
+
+		lastEnd := lastStart.Add(time.Duration(g.SlotSteps) * time.Second)
+		slot = NewNewTimeSlot(lastStart, lastEnd)
+
+		if len(g.Timeslots) >= g.SlotCount {
+			// remove and free first item
+			copy(g.Timeslots[0:], g.Timeslots[1:])
+			g.Timeslots[len(g.Timeslots)-1] = slot
+		} else {
+			if len(g.Timeslots) == 0 {
+				fmt.Println("start new timeslots", slot.From, slot.To)
+			}
+			g.Timeslots = append(g.Timeslots, slot)
+		}
+
+		lastStart = lastEnd
+	}
+}
+
+func (g *Graph) FindSlotIndex(t time.Time) int {
+	for n, slot := range g.Timeslots {
+		//if !slot.From.Before(t) && !slot.To.After(t) {
+		if !slot.From.Before(t) {
+			return n
+		}
+	}
+	return -1
+}
+
+func (g *Graph) ProcessTimeslots() {
+	firstTime := g.Timeslots[0].From
+	lastTime := g.Timeslots[len(g.Timeslots)-1].To
+	//fmt.Println("ProcessTimeslots", firstTime, lastTime)
+
+	if g.CurrentTime.Before(firstTime) {
+		fmt.Println("g.CurrentTime.Before(firstTime)")
+		//return
+	}
+	if g.CurrentTime.After(lastTime) {
+		fmt.Println("g.CurrentTime.After(lastTime)")
+		return
+	}
+
+	var slot *TimeSlot
+
+	lastIndex := -2
+	processingStart := time.Now()
+
+	g.DB.View(func(tx *bolt.Tx) error {
+		c := tx.Bucket([]byte(g.ProductID)).Cursor()
+
+		c.Seek(orderbook.PackTimeKey(g.CurrentTime))
+		for {
+			if time.Now().Sub(processingStart).Seconds() >= 1.0 {
+				fmt.Println("Processing defer")
+				break
+			}
+
+			key, buf := c.Next()
+			if key == nil {
+				break
+			}
+
+			t := orderbook.UnpackTimeKey(key)
+
+			if t.After(lastTime) {
+				//fmt.Println("t.After(lastTime)")
+				break
+			}
+
+			slotIndex := g.FindSlotIndex(t)
+			if slotIndex == -1 {
+				//fmt.Println("if slotIndex == -1 {")
+				g.CurrentTime = t
+				g.Book.Process(t, orderbook.UnpackPacket(buf))
+				continue
+			} else {
+				slot = g.Timeslots[slotIndex]
+				if slot.To.Before(t) {
+					continue
+				} else {
+					//fmt.Println("found slot!")
+				}
+			}
+
+			if slotIndex != lastIndex {
+				//fmt.Println("if slotIndex != lastIndex {")
+				if lastIndex != -2 {
+					slot = g.Timeslots[lastIndex]
+					slot.Stats = g.Book.Book.StatsCopy()
+				}
+				g.Book.Book.ResetStats()
+				lastIndex = slotIndex
+			}
+
+			g.CurrentTime = t
+			g.Book.Process(t, orderbook.UnpackPacket(buf))
+
+			slot = g.Timeslots[slotIndex]
+			if slot.Stats == nil {
+				//fmt.Println("if slot.Stats == nil {")
+				slot.Stats = g.Book.Book.StatsCopy()
+			}
+		}
+		return nil
+	})
+
+	if slot != nil && slot.Stats != nil {
+		slot.Stats = g.Book.Book.StatsCopy()
+	}
 }
 
 func RoundTime(t time.Time, steps int) time.Time {
@@ -133,118 +223,7 @@ func RoundTime(t time.Time, steps int) time.Time {
 	return time.Unix(tmp, 0)
 }
 
-func (g *Graph) AddTimeslots(end time.Time) (*TimeSlot, bool, bool, error) {
-
-	if g.CurrentTime.After(end) {
-		// break out for replays
-		return nil, false, false, nil
-	}
-
-	curSlotStart := RoundTime(g.CurrentTime, g.SlotSteps)
-	curSlotEnd := curSlotStart.Add(time.Duration(g.SlotSteps) * time.Second)
-
-	new := true
-	more := true
-	if curSlotEnd.After(end) {
-		// no more wanted
-		more = false
-	}
-
-	//fmt.Println("Begin AddTimeslots", string(g.CurrentKey), curSlotStart, curSlotEnd, more)
-
-	var slot *TimeSlot
-
-	if len(g.Timeslots) == 0 {
-		g.Book.Book.ResetStats()
-		slot = NewNewTimeSlot(curSlotStart, curSlotEnd)
-	} else {
-		slot = g.Timeslots[len(g.Timeslots)-1]
-		if slot.From == curSlotStart {
-			new = false
-		} else {
-			g.Book.Book.ResetStats()
-			slot = NewNewTimeSlot(curSlotStart, curSlotEnd)
-		}
-	}
-
-	jumpNext := false
-	nextSequence := g.Book.Book.Sequence + 1
-	var isTrade bool
-
-	g.DB.View(func(tx *bolt.Tx) error {
-		c := tx.Bucket([]byte(g.ProductID)).Cursor()
-
-		c.Seek(g.LastProcessedKey)
-		for {
-			key, buf := c.Next()
-			if key == nil {
-				break
-			}
-
-			t := orderbook.UnpackTimeKey(key)
-
-			isTrade = false
-			seq := orderbook.UnpackSequence(buf)
-			if seq == 0 {
-				isTrade = true
-			} else if seq != nextSequence {
-				fmt.Println("graph out of sequence", string(g.CurrentKey), string(key), seq, nextSequence, orderbook.UnpackPacket(buf)["type"])
-				pkt := orderbook.UnpackPacket(buf)
-				if pkt["type"].(string) == "sync" {
-					fmt.Println("found sync packet", seq, nextSequence)
-					g.Book.Process(t, pkt)
-				} else {
-					fmt.Println("no sync packet. continue search", seq, nextSequence)
-					more = true
-				}
-				g.LastProcessedKey = []byte(string(key))
-				// TODO re-enable booth again and fix it
-				//jumpNext = true
-				//break
-			}
-
-			if t.After(curSlotEnd) {
-				//fmt.Println("in sequence defer", string(g.CurrentKey), string(key), seq, nextSequence, orderbook.UnpackPacket(buf)["type"])
-				more = true
-				jumpNext = true
-				g.CurrentTime = t
-				break
-			} else {
-				//fmt.Println("in sequence process", string(g.CurrentKey), string(key), seq, nextSequence, orderbook.UnpackPacket(buf)["type"])
-				g.Book.Process(t, orderbook.UnpackPacket(buf))
-				if !isTrade {
-					nextSequence = g.Book.Book.Sequence + 1
-				}
-				g.LastProcessedKey = []byte(string(key))
-			}
-		}
-
-		if !bytes.Equal(g.LastProcessedKey, g.CurrentKey) {
-			g.CurrentKey = []byte(string(g.LastProcessedKey))
-			g.CurrentTime = orderbook.UnpackTimeKey(g.CurrentKey)
-			slot.Stats = g.Book.Book.StatsCopy()
-		} else {
-			if jumpNext {
-				if new {
-					slot.Stats = g.Book.Book.StatsCopy()
-				}
-			} else {
-				more = false
-			}
-		}
-
-		return nil
-	})
-
-	if slot.Stats == nil {
-		slot.Stats = g.Book.Book.StatsCopy()
-	}
-
-	//fmt.Println("End AddTimeslots")
-	return slot, new, more, nil
-}
-
-func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
+func (g *Graph) FetchBook(from time.Time) (time.Time, *orderbook.DbBook, error) {
 	//fmt.Println("Begin FetchBook")
 	var err error
 	book := orderbook.NewDbBook(g.ProductID)
@@ -266,7 +245,7 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 		// apply sync packet
 		pkt := orderbook.UnpackPacket(buf)
 		book.Process(orderbook.UnpackTimeKey(key), pkt)
-		g.LastProcessedKey = []byte(string(key))
+		LastProcessedKey := []byte(string(key))
 
 		// walk and fill book until startKey
 		for key, buf = c.Next(); key != nil; key, buf = c.Next() {
@@ -274,18 +253,18 @@ func (g *Graph) FetchBook(from time.Time) ([]byte, *orderbook.DbBook, error) {
 				startKey = key
 				pkt := orderbook.UnpackPacket(buf)
 				book.Process(orderbook.UnpackTimeKey(key), pkt)
-				g.LastProcessedKey = []byte(string(key))
+				LastProcessedKey = []byte(string(key))
 			} else {
 				break
 			}
 		}
-		startKey = []byte(string(g.LastProcessedKey))
+		startKey = LastProcessedKey
 
 		return nil
 	})
 
 	if err == nil {
-		fmt.Println("FetchBook", g.ProductID, "found startKey", string(startKey), book.Book.Sequence)
+		fmt.Println("FetchBook", g.ProductID, "found start", orderbook.UnpackTimeKey(startKey))
 	}
-	return startKey, book, err
+	return orderbook.UnpackTimeKey(startKey), book, err
 }

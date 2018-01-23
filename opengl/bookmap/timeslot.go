@@ -51,6 +51,10 @@ func NewTimeSlot(bookmap *Bookmap, from time.Time, to time.Time) *TimeSlot {
 	return v
 }
 
+func (s *TimeSlot) noStats() bool {
+	return s.Stats == nil
+}
+
 func (s *TimeSlot) isEmpty() bool {
 	for _, row := range s.Rows {
 		if row.Size > 0 {

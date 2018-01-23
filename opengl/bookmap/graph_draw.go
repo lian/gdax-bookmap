@@ -46,7 +46,7 @@ func (g *Graph) DrawTradeDots(gc *draw2dimg.GraphicContext, x, rowHeight, priceP
 		}
 
 		slot := g.Timeslots[idx]
-		if slot.isEmpty() || (slot.AskTradeSize == 0 && slot.BidTradeSize == 0) {
+		if slot.noStats() || slot.isEmpty() || (slot.AskTradeSize == 0 && slot.BidTradeSize == 0) {
 			continue
 		}
 
@@ -93,6 +93,19 @@ func (g *Graph) DrawBidAskLines(img *image.RGBA, x, rowHeight, pricePosition, pr
 		x -= float64(g.SlotWidth)
 		if x < 0 {
 			break
+		}
+
+		if slot.noStats() {
+			// find prev stat slot
+			for n := idx; n > 0; n-- {
+				slot = g.Timeslots[n]
+				if !slot.noStats() {
+					break
+				}
+			}
+			if slot.noStats() {
+				continue
+			}
 		}
 
 		if slot.isEmpty() {
@@ -142,6 +155,19 @@ func (g *Graph) DrawTimeslots(gc *draw2dimg.GraphicContext, x, rowsCount, rowHei
 	for idx := maxIdx; idx > 0; idx-- {
 		slot := g.Timeslots[idx]
 
+		if slot.noStats() {
+			// find prev stat slot
+			for n := idx; n > 0; n-- {
+				slot = g.Timeslots[n]
+				if !slot.noStats() {
+					break
+				}
+			}
+			if slot.noStats() {
+				continue
+			}
+		}
+
 		x -= float64(g.SlotWidth)
 		if x < 0 {
 			break
@@ -152,7 +178,7 @@ func (g *Graph) DrawTimeslots(gc *draw2dimg.GraphicContext, x, rowsCount, rowHei
 			slot.GenerateRows(rowsCount, pricePosition, priceSteps)
 			slot.Refill()
 		} else {
-			if idx >= (maxIdx - 1) { // only need to refill last/current two
+			if idx >= (maxIdx - 2) { // only need to refill last/current two
 				slot.Refill()
 			}
 		}

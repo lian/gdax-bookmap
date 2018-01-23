@@ -42,6 +42,7 @@ func New(db *bolt.DB) *Client {
 
 	//products := []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"}
 	products := []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"}
+	//products := []string{"BTC-USD"}
 	for _, name := range products {
 		c.AddProduct(name)
 	}

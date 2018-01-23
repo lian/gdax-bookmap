@@ -96,7 +96,7 @@ func (s *Trades) Render() {
 			fg = green
 		}
 
-		size := fmt.Sprintf("%.8f", trade.Size)
+		size := fmt.Sprintf("%.8f", trade.Quantity)
 		cx := x + (sizePadding - (len(size) * font.Width))
 		font.DrawString(data, cx, y, size, fg1)
 
