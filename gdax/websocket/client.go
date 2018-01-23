@@ -69,17 +69,21 @@ func (c *Client) AddProduct(name string) {
 	c.Infos = append(c.Infos, &info)
 }
 
-func (c *Client) Connect() {
-	fmt.Println("connect to websocket")
-	s, _, err := websocket.DefaultDialer.Dial("wss://ws-feed.gdax.com", nil)
-	c.Socket = s
+func (c *Client) Connect() error {
+	url := "wss://ws-feed.gdax.com"
+	fmt.Println("connect to websocket", url)
+	s, _, err := websocket.DefaultDialer.Dial(url, nil)
 
 	if err != nil {
-		log.Fatal("dial:", err)
+		return err
 	}
+
+	c.Socket = s
 
 	buf, _ := json.Marshal(map[string]interface{}{"type": "subscribe", "product_ids": c.Products})
 	err = c.Socket.WriteMessage(websocket.TextMessage, buf)
+
+	return nil
 }
 
 type PacketHeader struct {
@@ -91,7 +95,7 @@ type PacketHeader struct {
 func (c *Client) HandleMessage(book *orderbook.Book, header PacketHeader, message []byte) {
 	var data map[string]interface{}
 	if err := json.Unmarshal(message, &data); err != nil {
-		log.Fatal(err)
+		log.Println("HandleMessage:", err)
 	}
 
 	var trade *orderbook.Order
@@ -187,7 +191,11 @@ func (c *Client) Run() {
 }
 
 func (c *Client) run() {
-	c.Connect()
+	if err := c.Connect(); err != nil {
+		fmt.Println("failed to connect", err)
+		time.Sleep(1000 * time.Millisecond)
+		return
+	}
 	defer c.Socket.Close()
 
 	for {

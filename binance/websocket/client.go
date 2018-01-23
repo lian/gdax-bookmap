@@ -75,7 +75,7 @@ func (c *Client) AddProduct(name string) {
 	c.Books[trades_channel] = book
 }
 
-func (c *Client) Connect() {
+func (c *Client) Connect() error {
 	streams := []string{}
 	for channel, _ := range c.Books {
 		streams = append(streams, channel)
@@ -84,13 +84,15 @@ func (c *Client) Connect() {
 
 	fmt.Println("connect to websocket", url)
 	s, _, err := websocket.DefaultDialer.Dial(url, nil)
-	c.Socket = s
 
 	if err != nil {
-		log.Fatal("dial:", err)
+		return err
 	}
 
+	c.Socket = s
 	c.ConnectedAt = time.Now()
+
+	return nil
 }
 
 type PacketHeader struct {
@@ -251,7 +253,12 @@ func (c *Client) Run() {
 }
 
 func (c *Client) run() {
-	c.Connect()
+	if err := c.Connect(); err != nil {
+		fmt.Println("failed to connect", err)
+		time.Sleep(1000 * time.Millisecond)
+		return
+	}
+
 	defer c.Socket.Close()
 
 	for {

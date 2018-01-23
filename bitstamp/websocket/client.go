@@ -69,19 +69,22 @@ func (c *Client) AddProduct(name string) {
 	c.Books[trades_channel] = book
 }
 
-func (c *Client) Connect() {
-	fmt.Println("connect to websocket")
+func (c *Client) Connect() error {
 	url := "wss://ws.pusherapp.com/app/de504dc5763aeef9ff52?protocol=7&client=js&version=2.1.6&flash=false"
+	fmt.Println("connect to websocket", url)
 	s, _, err := websocket.DefaultDialer.Dial(url, nil)
-	c.Socket = s
 
 	if err != nil {
-		log.Fatal("dial:", err)
+		return err
 	}
+
+	c.Socket = s
 
 	for channel, _ := range c.Books {
 		c.Subscribe(channel)
 	}
+
+	return nil
 }
 
 func (c *Client) Subscribe(channel string) {
@@ -211,7 +214,11 @@ func (c *Client) Run() {
 }
 
 func (c *Client) run() {
-	c.Connect()
+	if err := c.Connect(); err != nil {
+		fmt.Println("failed to connect", err)
+		time.Sleep(1000 * time.Millisecond)
+		return
+	}
 	defer c.Socket.Close()
 
 	for {
