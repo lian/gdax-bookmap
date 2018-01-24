@@ -17,6 +17,7 @@ type Graph struct {
 	Book        *orderbook.DbBook
 	Timeslots   []*TimeSlot
 	Width       int
+	Height      int
 	SlotWidth   int
 	SlotCount   int
 	SlotSteps   int
@@ -30,11 +31,12 @@ type Graph struct {
 	Fg1         color.RGBA
 }
 
-func NewGraph(db *bolt.DB, productID string, width, slotWidth, slotSteps int) *Graph {
+func NewGraph(db *bolt.DB, productID string, width, height, slotWidth, slotSteps int) *Graph {
 	g := &Graph{
 		ProductID: productID,
 		DB:        db,
 		Width:     width,
+		Height:    height,
 		SlotWidth: slotWidth,
 		SlotCount: width / slotWidth,
 		SlotSteps: slotSteps,
@@ -107,7 +109,7 @@ func (g *Graph) GenerateTimeslots(end time.Time) {
 		}
 
 		lastEnd := lastStart.Add(time.Duration(g.SlotSteps) * time.Second)
-		slot = NewNewTimeSlot(lastStart, lastEnd)
+		slot = NewTimeSlot(lastStart, lastEnd)
 
 		if len(g.Timeslots) >= g.SlotCount {
 			// remove and free first item

@@ -28,7 +28,7 @@ type Client struct {
 	Infos       []*product_info.Info
 }
 
-func New(db *bolt.DB) *Client {
+func New(db *bolt.DB, products []string) *Client {
 	c := &Client{
 		Products:   []string{},
 		Books:      map[string]*orderbook.Book{},
@@ -41,9 +41,6 @@ func New(db *bolt.DB) *Client {
 		c.dbEnabled = true
 	}
 
-	//products := []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "XRP-USD"}
-	products := []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"}
-	//products := []string{"BTC-USD"}
 	for _, name := range products {
 		c.AddProduct(name)
 	}

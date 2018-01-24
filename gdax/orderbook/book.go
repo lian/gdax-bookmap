@@ -76,15 +76,14 @@ type BookLevelDiff struct {
 }
 
 type Book struct {
-	ID            string
-	ProductInfo   product_info.Info
-	Bid           map[float64]*BookLevel
-	Ask           map[float64]*BookLevel
-	OrderMap      map[string]*Order
-	Sequence      uint64
-	Trades        []*Order
-	TradesUpdated chan string
-	Diff          *BookLevelDiff
+	ID          string
+	ProductInfo product_info.Info
+	Bid         map[float64]*BookLevel
+	Ask         map[float64]*BookLevel
+	OrderMap    map[string]*Order
+	Sequence    uint64
+	Trades      []*Order
+	Diff        *BookLevelDiff
 }
 
 func New(id string) *Book {
@@ -337,8 +336,4 @@ func (b *Book) AddTrade(match *Order) {
 		b.Trades = b.Trades[:len(b.Trades)-1]
 	}
 	b.Trades = append(b.Trades, match)
-
-	if b.TradesUpdated != nil {
-		b.TradesUpdated <- b.ID
-	}
 }

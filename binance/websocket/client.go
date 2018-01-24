@@ -29,7 +29,7 @@ type Client struct {
 	Infos       []*product_info.Info
 }
 
-func New(db *bolt.DB) *Client {
+func New(db *bolt.DB, products []string) *Client {
 	c := &Client{
 		Products:   []string{},
 		Books:      map[string]*orderbook.Book{},
@@ -43,7 +43,6 @@ func New(db *bolt.DB) *Client {
 
 	// https://api.binance.com/api/v1/exchangeInfo
 
-	products := []string{"BTC-USDT"}
 	for _, name := range products {
 		c.AddProduct(name)
 	}

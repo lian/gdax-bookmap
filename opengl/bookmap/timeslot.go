@@ -32,22 +32,13 @@ type TimeSlot struct {
 	Cleared      bool
 }
 
-func NewNewTimeSlot(from time.Time, to time.Time) *TimeSlot {
+func NewTimeSlot(from time.Time, to time.Time) *TimeSlot {
 	v := &TimeSlot{
 		From:    from,
 		To:      to,
 		Rows:    []*TimeSlotRow{},
 		Cleared: true,
 	}
-	return v
-}
-
-func NewTimeSlot(bookmap *Bookmap, from time.Time, to time.Time) *TimeSlot {
-	v := NewNewTimeSlot(from, to)
-
-	rows := ((bookmap.Texture.Height - bookmap.RowHeight) / bookmap.RowHeight)
-	v.GenerateRows(rows, bookmap.PriceScrollPosition, bookmap.PriceSteps)
-
 	return v
 }
 

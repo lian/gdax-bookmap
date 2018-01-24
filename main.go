@@ -22,7 +22,6 @@ import (
 	gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
 
 	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
-	opengl_trades "github.com/lian/gdax-bookmap/opengl/trades"
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	"github.com/lian/gdax-bookmap/util"
 )
@@ -89,6 +88,12 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm.Graph.SlotSteps = bm.ViewportStep
 		start := bm.Graph.CurrentTime.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
 		bm.Graph.SetStart(start)
+
+		for _, bookmap := range bookmaps {
+			bookmap.ViewportStep = bm.ViewportStep
+			bookmap.Graph.SlotSteps = bm.Graph.SlotSteps
+			bookmap.Graph.SetStart(start)
+		}
 	} else if key == glfw.KeyA && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ViewportStep = bm.ViewportStep / 2
@@ -98,14 +103,28 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm.Graph.SlotSteps = bm.ViewportStep
 		start := bm.Graph.CurrentTime.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
 		bm.Graph.SetStart(start)
+
+		for _, bookmap := range bookmaps {
+			bookmap.ViewportStep = bm.ViewportStep
+			bookmap.Graph.SlotSteps = bm.Graph.SlotSteps
+			bookmap.Graph.SetStart(start)
+		}
 	} else if key == glfw.KeyJ && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = bm.MaxSizeHisto * 2
+
+		for _, bookmap := range bookmaps {
+			bookmap.MaxSizeHisto = bm.MaxSizeHisto
+		}
 	} else if key == glfw.KeyK && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.MaxSizeHisto = bm.MaxSizeHisto / 2
 		if bm.MaxSizeHisto < 0 {
 			bm.MaxSizeHisto = 1
+		}
+
+		for _, bookmap := range bookmaps {
+			bookmap.MaxSizeHisto = bm.MaxSizeHisto
 		}
 	} else if key == glfw.KeyDown && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
@@ -114,6 +133,11 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 			//bm.PriceSteps = float64(bm.ProductInfo.BaseMaxSize)
 		}
 		bm.ForceAutoScroll()
+
+		for _, bookmap := range bookmaps {
+			bookmap.PriceSteps = bm.PriceSteps
+			bookmap.ForceAutoScroll()
+		}
 	} else if key == glfw.KeyUp && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.PriceSteps = bm.PriceSteps / 2
@@ -121,6 +145,11 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 			bm.PriceSteps = float64(bm.ProductInfo.QuoteIncrement)
 		}
 		bm.ForceAutoScroll()
+
+		for _, bookmap := range bookmaps {
+			bookmap.PriceSteps = bm.PriceSteps
+			bookmap.ForceAutoScroll()
+		}
 	} else if key == glfw.KeyLeft && action == glfw.Press {
 		bm := bookmaps[ActiveProduct]
 		bm.ColumnWidth -= 2
@@ -201,8 +230,12 @@ func resizeCallback(_ *glfw.Window, width int, height int) {
 var WindowWidth int = 1280
 var WindowHeight int = 720
 
+//var WindowWidth int = 1920
+//var WindowHeight int = 1080
+
 var program *shader.Program
-var trades map[string]*opengl_trades.Trades
+
+//var trades map[string]*opengl_trades.Trades
 var bookmaps map[string]*opengl_bookmap.Bookmap
 
 var ActiveProduct string
@@ -276,7 +309,9 @@ func main() {
 	infos = make([]*product_info.Info, 0)
 
 	if strings.Contains(ActivePlatform, "GDAX") {
-		ws := gdax_websocket.New(db)
+		//ws := gdax_websocket.New(db, []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"})
+		//ws := gdax_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
+		ws := gdax_websocket.New(db, []string{"BTC-USD"})
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -284,7 +319,9 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 	if strings.Contains(ActivePlatform, "Bitstamp") {
-		ws := bitstamp_websocket.New(db)
+		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "XRP-USD"})
+		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
+		ws := bitstamp_websocket.New(db, []string{"BTC-USD"})
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -292,7 +329,7 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 	if strings.Contains(ActivePlatform, "Binance") {
-		ws := binance_websocket.New(db)
+		ws := binance_websocket.New(db, []string{"BTC-USDT"})
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -301,18 +338,21 @@ func main() {
 	}
 
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
-	trades = map[string]*opengl_trades.Trades{}
+	//trades = map[string]*opengl_trades.Trades{}
 
 	padding := 10.0
 	x := padding
 	for _, info := range infos {
-		bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, 1000, 700, x, *info, db)
+		//bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, 1260, 680/3, x, *info, db)
+		bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, float64(WindowWidth)-20, float64((WindowHeight-4)/3), x, *info, db)
 	}
 	x += bookmaps[ActiveProduct].Texture.Width + padding
-	for _, info := range infos {
-		trades[info.DatabaseKey] = opengl_trades.New(program, bookmaps[info.DatabaseKey], *info, 700, x)
-	}
-	x += trades[ActiveProduct].Texture.Width + padding
+	/*
+		for _, info := range infos {
+			trades[info.DatabaseKey] = opengl_trades.New(program, bookmaps[info.DatabaseKey], *info, 700, x)
+		}
+		x += trades[ActiveProduct].Texture.Width + padding
+	*/
 
 	// Configure global settings
 	gl.Enable(gl.DEPTH_TEST)
@@ -329,14 +369,19 @@ func main() {
 			glfw.PollEvents()
 			continue
 		case <-halfsecond.C:
-			trades[ActiveProduct].Render()
+			//trades[ActiveProduct].Render()
 		case <-second.C:
-			for _, info := range infos {
-				if ActiveProduct == info.DatabaseKey {
-					bookmaps[info.DatabaseKey].Render()
-				} else {
-					bookmaps[info.DatabaseKey].Progress()
+			/*
+				for _, info := range infos {
+					if ActiveProduct == info.DatabaseKey {
+						bookmaps[info.DatabaseKey].Render()
+					} else {
+						bookmaps[info.DatabaseKey].Progress()
+					}
 				}
+			*/
+			for _, bookmap := range bookmaps {
+				bookmap.Render()
 			}
 		case <-redrawChan:
 			//fmt.Println("forced redraw")
@@ -346,8 +391,12 @@ func main() {
 
 		program.Use()
 
-		bookmaps[ActiveProduct].Texture.Draw()
-		trades[ActiveProduct].Texture.Draw()
+		//bookmaps[ActiveProduct].Texture.Draw()
+		//trades[ActiveProduct].Texture.Draw()
+
+		for n, info := range infos {
+			bookmaps[info.DatabaseKey].Texture.DrawAt(float32(10), float32(WindowHeight)-float32(n*(WindowHeight/3)))
+		}
 
 		window.SwapBuffers()
 		glfw.PollEvents()
