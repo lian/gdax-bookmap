@@ -29,6 +29,7 @@ type Graph struct {
 	Green       color.RGBA
 	Bg1         color.RGBA
 	Fg1         color.RGBA
+	CurrentSlot *TimeSlot
 }
 
 func NewGraph(db *bolt.DB, productID string, width, height, slotWidth, slotSteps int) *Graph {
@@ -117,7 +118,8 @@ func (g *Graph) GenerateTimeslots(end time.Time) {
 			g.Timeslots[len(g.Timeslots)-1] = slot
 		} else {
 			if len(g.Timeslots) == 0 {
-				fmt.Println("start new timeslots", slot.From, slot.To)
+				g.CurrentSlot = slot
+				fmt.Println(g.ProductID, "start new timeslots", slot.From, slot.To)
 			}
 			g.Timeslots = append(g.Timeslots, slot)
 		}
@@ -126,14 +128,14 @@ func (g *Graph) GenerateTimeslots(end time.Time) {
 	}
 }
 
-func (g *Graph) FindSlotIndex(t time.Time) int {
-	for n, slot := range g.Timeslots {
-		//if !slot.From.Before(t) && !slot.To.After(t) {
-		if !slot.From.Before(t) {
-			return n
+func (g *Graph) NextSlot(t time.Time) *TimeSlot {
+	nano := t.UnixNano()
+	for _, s := range g.Timeslots {
+		if nano > s.From.UnixNano() && nano <= s.To.UnixNano() {
+			return s
 		}
 	}
-	return -1
+	return nil
 }
 
 func (g *Graph) ProcessTimeslots() {
@@ -141,18 +143,14 @@ func (g *Graph) ProcessTimeslots() {
 	lastTime := g.Timeslots[len(g.Timeslots)-1].To
 	//fmt.Println("ProcessTimeslots", firstTime, lastTime)
 
-	if g.CurrentTime.Before(firstTime) {
-		fmt.Println("g.CurrentTime.Before(firstTime)")
-		//return
-	}
 	if g.CurrentTime.After(lastTime) {
 		fmt.Println("g.CurrentTime.After(lastTime)")
 		return
 	}
 
 	var slot *TimeSlot
+	var updateStats bool
 
-	lastIndex := -2
 	processingStart := time.Now()
 
 	g.DB.View(func(tx *bolt.Tx) error {
@@ -172,50 +170,59 @@ func (g *Graph) ProcessTimeslots() {
 
 			t := orderbook.UnpackTimeKey(key)
 
+			// after our wanted range
 			if t.After(lastTime) {
-				//fmt.Println("t.After(lastTime)")
+				fmt.Println(g.ProductID, "after our wanted range", t, lastTime)
 				break
 			}
 
-			slotIndex := g.FindSlotIndex(t)
-			if slotIndex == -1 {
-				//fmt.Println("if slotIndex == -1 {")
+			// before our wanted range, process it and move on
+			if t.Before(firstTime) {
+				//fmt.Println(g.ProductID, "before our wanted range", t, firstTime)
 				g.CurrentTime = t
 				g.Book.Process(t, orderbook.UnpackPacket(buf))
 				continue
-			} else {
-				slot = g.Timeslots[slotIndex]
-				if slot.To.Before(t) {
-					continue
-				} else {
-					//fmt.Println("found slot!")
-				}
 			}
 
-			if slotIndex != lastIndex {
-				//fmt.Println("if slotIndex != lastIndex {")
-				if lastIndex != -2 {
-					slot = g.Timeslots[lastIndex]
-					slot.Stats = g.Book.Book.StatsCopy()
-				}
-				g.Book.Book.ResetStats()
-				lastIndex = slotIndex
-			}
+			slot = g.CurrentSlot
 
-			g.CurrentTime = t
-			g.Book.Process(t, orderbook.UnpackPacket(buf))
-
-			slot = g.Timeslots[slotIndex]
-			if slot.Stats == nil {
-				//fmt.Println("if slot.Stats == nil {")
+			// move to next slow
+			if t.After(slot.To) {
 				slot.Stats = g.Book.Book.StatsCopy()
+				g.CurrentSlot = g.NextSlot(t)
+				/*
+					if g.CurrentSlot == nil {
+						fmt.Println(g.ProductID, "next slot nil", lastTime)
+						g.CurrentSlot = slot
+						break
+					}
+				*/
+				g.Book.Book.ResetStats()
+				g.CurrentTime = t
+				g.Book.Process(t, orderbook.UnpackPacket(buf))
+				g.CurrentSlot.Stats = g.Book.Book.StatsCopy()
+				/*
+					if g.ProductID == "Bitstamp-BTC-USD" {
+						fmt.Println(g.ProductID, "move to next slot", slot.To, g.CurrentSlot.To, t)
+					}
+				*/
+			} else {
+				g.CurrentTime = t
+				g.Book.Process(t, orderbook.UnpackPacket(buf))
+
+				if slot.Stats == nil {
+					slot.Stats = g.Book.Book.StatsCopy()
+				} else {
+					updateStats = true
+				}
 			}
+
 		}
 		return nil
 	})
 
-	if slot != nil && slot.Stats != nil {
-		slot.Stats = g.Book.Book.StatsCopy()
+	if updateStats {
+		g.CurrentSlot.Stats = g.Book.Book.StatsCopy()
 	}
 }
 
