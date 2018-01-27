@@ -71,6 +71,18 @@ func init() {
 			QuoteIncrement: 0.01,
 			FloatFormat:    fmt.Sprintf("%%.%df", util.NumDecPlaces(0.01)),
 		},
+		"BCH-EUR": product_info.Info{
+			Platform:       "Bitstamp",
+			DatabaseKey:    "Bitstamp-BCH-EUR",
+			ID:             "BCH-EUR",
+			DisplayName:    "BCH-EUR",
+			BaseCurrency:   "BCH",
+			QuoteCurrency:  "EUR",
+			BaseMinSize:    0,
+			BaseMaxSize:    0,
+			QuoteIncrement: 0.01,
+			FloatFormat:    fmt.Sprintf("%%.%df", util.NumDecPlaces(0.01)),
+		},
 	}
 	// btcusd, btceur, eurusd, xrpusd, xrpeur, xrpbtc, ltcusd, ltceur, ltcbtc, ethusd, etheur, ethbtc, bchusd, bcheur, bchbtc
 }

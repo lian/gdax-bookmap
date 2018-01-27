@@ -138,17 +138,29 @@ func (b *Book) AddTrade(t time.Time, side uint8, price, quantity float64) {
 	b.Trades = append(b.Trades, trade)
 
 	if trade.Side == BidSide {
+		var found bool
 		for _, level := range b.Bid {
 			if level.Price == price {
 				level.TradeSize += quantity
+				found = true
 				break
 			}
 		}
+		if !found {
+			// add
+			b.Bid = append(b.Bid, &BookLevel{Price: price, TradeSize: quantity})
+		}
 	} else {
 		for _, level := range b.Ask {
+			var found bool
 			if level.Price == price {
 				level.TradeSize += quantity
+				found = true
 				break
+			}
+			if !found {
+				// add
+				b.Ask = append(b.Ask, &BookLevel{Price: price, TradeSize: quantity})
 			}
 		}
 	}

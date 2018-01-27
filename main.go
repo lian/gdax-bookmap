@@ -18,6 +18,7 @@ import (
 	//_ "net/http/pprof"
 
 	binance_websocket "github.com/lian/gdax-bookmap/binance/websocket"
+	bitfinex_websocket "github.com/lian/gdax-bookmap/bitfinex/websocket"
 	bitstamp_websocket "github.com/lian/gdax-bookmap/bitstamp/websocket"
 	gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
 
@@ -244,8 +245,11 @@ var infos []*product_info.Info
 
 func main() {
 	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
-	flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp-Binance", "Active Platform")
+	//flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp-Binance", "Active Platform")
+	flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp-Binance-Bitfinex", "Active Platform")
+	//flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp", "Active Platform")
 	//flag.StringVar(&ActivePlatform, "platform", "Bitstamp", "Active Platform")
+	//flag.StringVar(&ActivePlatform, "platform", "Bitfinex", "Active Platform")
 	flag.Parse()
 
 	/*
@@ -312,6 +316,7 @@ func main() {
 		//ws := gdax_websocket.New(db, []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"})
 		//ws := gdax_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
 		ws := gdax_websocket.New(db, []string{"BTC-USD"})
+		//ws := gdax_websocket.New(db, []string{"BCH-EUR"})
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -322,6 +327,7 @@ func main() {
 		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "XRP-USD"})
 		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
 		ws := bitstamp_websocket.New(db, []string{"BTC-USD"})
+		//ws := bitstamp_websocket.New(db, []string{"BCH-EUR"})
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -337,6 +343,15 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 
+	if strings.Contains(ActivePlatform, "Bitfinex") {
+		ws := bitfinex_websocket.New(db, []string{"BTC-USD"})
+		go ws.Run()
+		for _, info := range ws.Infos {
+			infos = append(infos, info)
+		}
+		ActiveProduct = infos[0].DatabaseKey
+	}
+
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
 	//trades = map[string]*opengl_trades.Trades{}
 
@@ -344,7 +359,7 @@ func main() {
 	x := padding
 	for _, info := range infos {
 		//bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, 1260, 680/3, x, *info, db)
-		bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, float64(WindowWidth)-20, float64((WindowHeight-4)/3), x, *info, db)
+		bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, float64(WindowWidth)-20, float64((WindowHeight-4)/len(infos)), x, *info, db)
 	}
 	x += bookmaps[ActiveProduct].Texture.Width + padding
 	/*
@@ -395,7 +410,7 @@ func main() {
 		//trades[ActiveProduct].Texture.Draw()
 
 		for n, info := range infos {
-			bookmaps[info.DatabaseKey].Texture.DrawAt(float32(10), float32(WindowHeight)-float32(n*(WindowHeight/3)))
+			bookmaps[info.DatabaseKey].Texture.DrawAt(float32(10), float32(WindowHeight)-float32(n*(WindowHeight/len(infos))))
 		}
 
 		window.SwapBuffers()
