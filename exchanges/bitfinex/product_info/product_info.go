@@ -1,4 +1,4 @@
-package orderbook
+package product_info
 
 import (
 	"encoding/json"

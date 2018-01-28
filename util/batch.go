@@ -6,11 +6,8 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/lian/gdax-bookmap/orderbook"
 )
-
-func PackUnixNanoKey(nano int64) []byte {
-	return []byte(fmt.Sprintf("%d", nano))
-}
 
 type BatchChunk struct {
 	Time time.Time
@@ -73,7 +70,7 @@ func (p *BookBatchWrite) Write(db *bolt.DB, now time.Time, bucket string, buf []
 				nano := chunk.Time.UnixNano()
 				// windows system clock resolution https://github.com/golang/go/issues/8687
 				for {
-					key = PackUnixNanoKey(nano)
+					key = orderbook.PackUnixNanoKey(nano)
 					if b.Get(key) == nil {
 						break
 					} else {

@@ -1,14 +1,13 @@
-package websocket
+package orderbook
 
 import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/lian/gdax-bookmap/exchanges/bitfinex/orderbook"
 	db_orderbook "github.com/lian/gdax-bookmap/orderbook"
 )
 
-func PackSync(book *orderbook.Book) []byte {
+func PackSync(book *Book) []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, db_orderbook.SyncPacket)
 	binary.Write(buf, binary.LittleEndian, uint64(book.Sequence))
@@ -28,7 +27,7 @@ func PackSync(book *orderbook.Book) []byte {
 	return buf.Bytes()
 }
 
-func PackDiff(first, last uint64, diff *orderbook.BookLevelDiff) []byte {
+func PackDiff(first, last uint64, diff *BookLevelDiff) []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, db_orderbook.DiffPacket)
 	binary.Write(buf, binary.LittleEndian, uint64(first)) // sequence
@@ -50,7 +49,7 @@ func PackDiff(first, last uint64, diff *orderbook.BookLevelDiff) []byte {
 	return buf.Bytes()
 }
 
-func PackTrade(trade *orderbook.Trade) []byte {
+func PackTrade(trade *Trade) []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, db_orderbook.TradePacket)
 	binary.Write(buf, binary.LittleEndian, uint64(0))         // seq

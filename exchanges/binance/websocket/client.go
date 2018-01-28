@@ -13,7 +13,8 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
-	"github.com/lian/gdax-bookmap/exchanges/binance/orderbook"
+	book_info "github.com/lian/gdax-bookmap/exchanges/binance/product_info"
+	"github.com/lian/gdax-bookmap/exchanges/common/orderbook"
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	"github.com/lian/gdax-bookmap/util"
 )
@@ -67,8 +68,9 @@ func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
 	book := orderbook.New(name)
-	info := orderbook.FetchProductInfo(name)
+	info := book_info.FetchProductInfo(name)
 	c.Infos = append(c.Infos, &info)
+	book.SetProductInfo(info)
 	diff_channel, trades_channel := streamNames(info.ID)
 	c.Books[diff_channel] = book
 	c.Books[trades_channel] = book
@@ -212,7 +214,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 		batch := c.BatchWrite[book.ID]
 		now := time.Now()
 		if trade != nil {
-			batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, PackTrade(trade))
+			batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, orderbook.PackTrade(trade))
 		}
 
 		if batch.NextSync(now) {
@@ -231,7 +233,7 @@ func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now
 	book.FixBookLevels() // TODO fix/remove
 	diff := book.Diff
 	if len(diff.Bid) != 0 || len(diff.Ask) != 0 {
-		pkt := PackDiff(batch.LastDiffSeq, book.Sequence, diff)
+		pkt := orderbook.PackDiff(batch.LastDiffSeq, book.Sequence, diff)
 		batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, pkt)
 		book.ResetDiff()
 		batch.LastDiffSeq = book.Sequence + 1
@@ -240,7 +242,7 @@ func (c *Client) WriteDiff(batch *util.BookBatchWrite, book *orderbook.Book, now
 
 func (c *Client) WriteSync(batch *util.BookBatchWrite, book *orderbook.Book, now time.Time) {
 	book.FixBookLevels() // TODO fix/remove
-	batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, PackSync(book))
+	batch.Write(c.DB, now, book.ProductInfo.DatabaseKey, orderbook.PackSync(book))
 	book.ResetDiff()
 	batch.LastDiffSeq = book.Sequence + 1
 }

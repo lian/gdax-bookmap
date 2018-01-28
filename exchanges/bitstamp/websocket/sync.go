@@ -6,15 +6,17 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/lian/gdax-bookmap/exchanges/bitstamp/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/common/orderbook"
 )
 
 func (c *Client) SyncBook(book *orderbook.Book) error {
 	fmt.Println("sync", book.ID)
 
-	url := fmt.Sprintf("https://www.bitstamp.net/api/v2/order_book/%s", book.WebsocketID)
+	id := strings.ToLower(strings.Replace(book.ProductInfo.ID, "-", "", -1))
+	url := fmt.Sprintf("https://www.bitstamp.net/api/v2/order_book/%s", id)
 	res, err := http.Get(url)
 	if err != nil {
 		return err

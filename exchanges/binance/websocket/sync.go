@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lian/gdax-bookmap/exchanges/binance/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/common/orderbook"
 )
 
 func (c *Client) SyncBook(book *orderbook.Book) error {

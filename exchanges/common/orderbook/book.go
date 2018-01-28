@@ -2,7 +2,6 @@ package orderbook
 
 import (
 	"math"
-	"strings"
 	"time"
 
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
@@ -37,7 +36,6 @@ type Trade struct {
 
 type Book struct {
 	ID          string
-	WebsocketID string
 	ProductInfo product_info.Info
 	Bid         []*BookLevel
 	Ask         []*BookLevel
@@ -49,15 +47,17 @@ type Book struct {
 
 func New(id string) *Book {
 	book := &Book{
-		ID:          id,
-		ProductInfo: FetchProductInfo(id),
-		Bid:         []*BookLevel{},
-		Ask:         []*BookLevel{},
-		Trades:      []*Trade{},
+		ID:     id,
+		Bid:    []*BookLevel{},
+		Ask:    []*BookLevel{},
+		Trades: []*Trade{},
 	}
-	book.WebsocketID = strings.ToLower(strings.Replace(book.ProductInfo.ID, "-", "", -1))
 	book.ResetDiff()
 	return book
+}
+
+func (b *Book) SetProductInfo(info product_info.Info) {
+	b.ProductInfo = info
 }
 
 func (b *Book) GetSide(price float64) uint8 {
