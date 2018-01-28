@@ -53,7 +53,7 @@ func FetchAllProductInfo() {
 			BaseCurrency:  base,
 			QuoteCurrency: quote,
 			Platform:      "Bitfinex",
-			DatabaseKey:   fmt.Sprintf("Binance-%s-%s", base, quote),
+			DatabaseKey:   fmt.Sprintf("Bitfinex-%s-%s", base, quote),
 		}
 
 		t, _ := strconv.ParseFloat(i["minimum_order_size"].(string), 64)

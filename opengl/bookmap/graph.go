@@ -141,7 +141,7 @@ func (g *Graph) NextSlot(t time.Time) *TimeSlot {
 func (g *Graph) ProcessTimeslots() {
 	firstTime := g.Timeslots[0].From
 	lastTime := g.Timeslots[len(g.Timeslots)-1].To
-	//fmt.Println("ProcessTimeslots", firstTime, lastTime)
+	//fmt.Println(g.ProductID, "ProcessTimeslots", firstTime, lastTime)
 
 	if g.CurrentTime.After(lastTime) {
 		fmt.Println("g.CurrentTime.After(lastTime)")
@@ -159,7 +159,7 @@ func (g *Graph) ProcessTimeslots() {
 		c.Seek(orderbook.PackTimeKey(g.CurrentTime))
 		for {
 			if time.Now().Sub(processingStart).Seconds() >= 1.0 {
-				fmt.Println("Processing defer")
+				fmt.Println(g.ProductID, "defer processing", g.CurrentTime)
 				break
 			}
 
@@ -172,15 +172,16 @@ func (g *Graph) ProcessTimeslots() {
 
 			// after our wanted range
 			if t.After(lastTime) {
-				fmt.Println(g.ProductID, "after our wanted range", t, lastTime)
+				fmt.Println(g.ProductID, "after wanted range", t, lastTime)
 				break
 			}
 
 			// before our wanted range, process it and move on
 			if t.Before(firstTime) {
-				//fmt.Println(g.ProductID, "before our wanted range", t, firstTime)
+				fmt.Println(g.ProductID, "before wanted range", t, firstTime)
 				g.CurrentTime = t
 				g.Book.Process(t, orderbook.UnpackPacket(buf))
+				g.Book.Book.ResetStats()
 				continue
 			}
 
@@ -201,11 +202,6 @@ func (g *Graph) ProcessTimeslots() {
 				g.CurrentTime = t
 				g.Book.Process(t, orderbook.UnpackPacket(buf))
 				g.CurrentSlot.Stats = g.Book.Book.StatsCopy()
-				/*
-					if g.ProductID == "Bitstamp-BTC-USD" {
-						fmt.Println(g.ProductID, "move to next slot", slot.To, g.CurrentSlot.To, t)
-					}
-				*/
 			} else {
 				g.CurrentTime = t
 				g.Book.Process(t, orderbook.UnpackPacket(buf))
@@ -275,5 +271,7 @@ func (g *Graph) FetchBook(from time.Time) (time.Time, *orderbook.DbBook, error) 
 	if err == nil {
 		fmt.Println("FetchBook", g.ProductID, "found start", orderbook.UnpackTimeKey(startKey))
 	}
+	book.Book.ResetStats()
+
 	return orderbook.UnpackTimeKey(startKey), book, err
 }
