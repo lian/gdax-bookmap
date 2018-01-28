@@ -88,7 +88,7 @@ func (s *Bookmap) ForceAutoScroll() {
 	last := s.PriceScrollPosition
 
 	//price := s.Graph.Book.Book.LastPrice()
-	price := s.Graph.Book.Book.CenterPrice()
+	price := s.Graph.Book.CenterPrice()
 	if price != 0.0 {
 		s.PriceScrollPosition = (price - math.Mod(price, s.PriceSteps)) + (float64(rowsCount/2) * s.PriceSteps)
 		if last != s.PriceScrollPosition {
@@ -164,7 +164,7 @@ func (s *Bookmap) DrawGraphStats() {
 	statsSlot := NewTimeSlot(zeroTime, zeroTime)
 	rows := ((float64(s.Graph.Height) - s.RowHeight) / s.RowHeight)
 	statsSlot.GenerateRows(rows, s.PriceScrollPosition, s.PriceSteps)
-	stats := s.Graph.Book.Book.StateAsStats()
+	stats := s.Graph.Book.StateAsStats()
 	statsSlot.Fill(stats)
 
 	fg1 := color.RGBA{0xdd, 0xdf, 0xe1, 0xff}
@@ -287,7 +287,7 @@ func (s *Bookmap) DrawStatus(now time.Time) {
 	text := fmt.Sprintf(
 		"%s %s   PriceSteps %s MaxSizeHisto %.2f ColumnWidth %.0f ViewportStep %d time-diff %s",
 		s.ProductInfo.DatabaseKey,
-		s.ProductInfo.FormatFloat(s.Graph.Book.Book.LastPrice()),
+		s.ProductInfo.FormatFloat(s.Graph.Book.LastPrice()),
 		s.ProductInfo.FormatFloat(s.PriceSteps),
 		s.MaxSizeHisto,
 		s.ColumnWidth,

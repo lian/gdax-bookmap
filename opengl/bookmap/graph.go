@@ -14,7 +14,7 @@ import (
 
 type Graph struct {
 	CurrentTime time.Time
-	Book        *orderbook.DbBook
+	Book        *orderbook.Book
 	Timeslots   []*TimeSlot
 	Width       int
 	Height      int
@@ -45,7 +45,7 @@ func NewGraph(db *bolt.DB, productID string, width, height, slotWidth, slotSteps
 		Green:     color.RGBA{0x84, 0xf7, 0x66, 0xff},
 		Bg1:       color.RGBA{0x15, 0x23, 0x2c, 0xff},
 		Fg1:       color.RGBA{0xdd, 0xdf, 0xe1, 0xff},
-		Book:      orderbook.NewDbBook(productID),
+		Book:      orderbook.New(productID),
 	}
 	return g
 }
@@ -178,10 +178,10 @@ func (g *Graph) ProcessTimeslots() {
 
 			// before our wanted range, process it and move on
 			if t.Before(firstTime) {
-				fmt.Println(g.ProductID, "before wanted range", t, firstTime)
+				//fmt.Println(g.ProductID, "before wanted range", t, firstTime)
 				g.CurrentTime = t
-				g.Book.Process(t, orderbook.UnpackPacket(buf))
-				g.Book.Book.ResetStats()
+				g.Book.Process(t, buf)
+				g.Book.ResetStats()
 				continue
 			}
 
@@ -189,7 +189,7 @@ func (g *Graph) ProcessTimeslots() {
 
 			// move to next slow
 			if t.After(slot.To) {
-				slot.Stats = g.Book.Book.StatsCopy()
+				slot.Stats = g.Book.StatsCopy()
 				g.CurrentSlot = g.NextSlot(t)
 				/*
 					if g.CurrentSlot == nil {
@@ -198,16 +198,16 @@ func (g *Graph) ProcessTimeslots() {
 						break
 					}
 				*/
-				g.Book.Book.ResetStats()
+				g.Book.ResetStats()
 				g.CurrentTime = t
-				g.Book.Process(t, orderbook.UnpackPacket(buf))
-				g.CurrentSlot.Stats = g.Book.Book.StatsCopy()
+				g.Book.Process(t, buf)
+				g.CurrentSlot.Stats = g.Book.StatsCopy()
 			} else {
 				g.CurrentTime = t
-				g.Book.Process(t, orderbook.UnpackPacket(buf))
+				g.Book.Process(t, buf)
 
 				if slot.Stats == nil {
-					slot.Stats = g.Book.Book.StatsCopy()
+					slot.Stats = g.Book.StatsCopy()
 				} else {
 					updateStats = true
 				}
@@ -218,7 +218,7 @@ func (g *Graph) ProcessTimeslots() {
 	})
 
 	if updateStats {
-		g.CurrentSlot.Stats = g.Book.Book.StatsCopy()
+		g.CurrentSlot.Stats = g.Book.StatsCopy()
 	}
 }
 
@@ -228,10 +228,10 @@ func RoundTime(t time.Time, steps int) time.Time {
 	return time.Unix(tmp, 0)
 }
 
-func (g *Graph) FetchBook(from time.Time) (time.Time, *orderbook.DbBook, error) {
+func (g *Graph) FetchBook(from time.Time) (time.Time, *orderbook.Book, error) {
 	//fmt.Println("Begin FetchBook")
 	var err error
-	book := orderbook.NewDbBook(g.ProductID)
+	book := orderbook.New(g.ProductID)
 	startKey := orderbook.PackTimeKey(from)
 
 	g.DB.View(func(tx *bolt.Tx) error {
@@ -248,16 +248,14 @@ func (g *Graph) FetchBook(from time.Time) (time.Time, *orderbook.DbBook, error) 
 		}
 
 		// apply sync packet
-		pkt := orderbook.UnpackPacket(buf)
-		book.Process(orderbook.UnpackTimeKey(key), pkt)
+		book.Process(orderbook.UnpackTimeKey(key), buf)
 		LastProcessedKey := []byte(string(key))
 
 		// walk and fill book until startKey
 		for key, buf = c.Next(); key != nil; key, buf = c.Next() {
 			if bytes.Compare(key, startKey) < 0 {
 				startKey = key
-				pkt := orderbook.UnpackPacket(buf)
-				book.Process(orderbook.UnpackTimeKey(key), pkt)
+				book.Process(orderbook.UnpackTimeKey(key), buf)
 				LastProcessedKey = []byte(string(key))
 			} else {
 				break
@@ -269,9 +267,9 @@ func (g *Graph) FetchBook(from time.Time) (time.Time, *orderbook.DbBook, error) 
 	})
 
 	if err == nil {
-		fmt.Println("FetchBook", g.ProductID, "found start", orderbook.UnpackTimeKey(startKey))
+		fmt.Println(g.ProductID, "FetchBook", "found start", orderbook.UnpackTimeKey(startKey))
 	}
-	book.Book.ResetStats()
+	book.ResetStats()
 
 	return orderbook.UnpackTimeKey(startKey), book, err
 }

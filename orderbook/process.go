@@ -28,111 +28,111 @@ func PackUnixNanoKey(nano int64) []byte {
 	return []byte(fmt.Sprintf("%d", nano))
 }
 
-func UnpackSequence(data []byte) uint64 {
-	buf := bytes.NewBuffer(data)
-	var packetType uint8
-	binary.Read(buf, binary.LittleEndian, &packetType)
-	var sequence uint64
-	binary.Read(buf, binary.LittleEndian, &sequence)
+func (book *Book) UpdateSync(first, last uint64) error {
+	seq := book.Sequence
+	next := seq + 1
 
-	return sequence
+	if first <= seq {
+		return fmt.Errorf("Ignore old messages %d %d", last, seq)
+	}
+
+	//fmt.Println("UpdateSync", book.Synced, seq, first, last)
+
+	if book.Synced {
+		if first != next {
+			fmt.Println("Message lost, wating for resync")
+			book.Synced = false
+		}
+	} else {
+		if (first <= next) && (last >= next) {
+			book.Synced = true
+		}
+	}
+
+	book.Sequence = last
+	return nil
 }
 
-func UnpackPacket(data []byte) map[string]interface{} {
+func (book *Book) Process(t time.Time, data []byte) bool {
 	buf := bytes.NewBuffer(data)
 
 	var packetType uint8
+	var sequence uint64
+	var first uint64
+	var last uint64
+	var bidsCount uint64
+	var asksCount uint64
+	var price float64
+	var size float64
+	var side uint8
+
 	binary.Read(buf, binary.LittleEndian, &packetType)
 
 	switch packetType {
 	case DiffPacket:
-		var sequence uint64
 		binary.Read(buf, binary.LittleEndian, &sequence)
-		var first uint64
 		binary.Read(buf, binary.LittleEndian, &first)
-		var last uint64
 		binary.Read(buf, binary.LittleEndian, &last)
 
-		var bidsCount uint64
+		if err := book.UpdateSync(first, last); err != nil {
+			fmt.Println(book.ProductInfo.DatabaseKey, "UpdateSync Error", err)
+			return false
+		}
+
 		binary.Read(buf, binary.LittleEndian, &bidsCount)
-		bids := make([][]float64, 0, bidsCount)
 		for i := uint64(0); i < bidsCount; i += 1 {
-			var price float64
 			binary.Read(buf, binary.LittleEndian, &price)
-			var size float64
 			binary.Read(buf, binary.LittleEndian, &size)
-			bids = append(bids, []float64{price, size})
+
+			book.UpdateBidLevel(t, price, size)
 		}
 
-		var asksCount uint64
 		binary.Read(buf, binary.LittleEndian, &asksCount)
-		asks := make([][]float64, 0, asksCount)
 		for i := uint64(0); i < asksCount; i += 1 {
-			var price float64
 			binary.Read(buf, binary.LittleEndian, &price)
-			var size float64
 			binary.Read(buf, binary.LittleEndian, &size)
-			asks = append(asks, []float64{price, size})
+
+			book.UpdateAskLevel(t, price, size)
 		}
 
-		return map[string]interface{}{
-			"type":     "diff",
-			"sequence": sequence,
-			"first":    first,
-			"last":     last,
-			"bids":     bids,
-			"asks":     asks,
-		}
+		book.Sort()
+
 	case SyncPacket:
-		var sequence uint64
 		binary.Read(buf, binary.LittleEndian, &sequence)
 
-		var bidsCount uint64
+		book.Clear()
+		book.Sequence = sequence
+
 		binary.Read(buf, binary.LittleEndian, &bidsCount)
-		bids := make([][]float64, 0, bidsCount)
 		for i := uint64(0); i < bidsCount; i += 1 {
-			var price float64
 			binary.Read(buf, binary.LittleEndian, &price)
-			var size float64
 			binary.Read(buf, binary.LittleEndian, &size)
-			bids = append(bids, []float64{price, size})
+
+			book.UpdateBidLevel(t, price, size)
 		}
 
-		var asksCount uint64
 		binary.Read(buf, binary.LittleEndian, &asksCount)
-		asks := make([][]float64, 0, asksCount)
 		for i := uint64(0); i < asksCount; i += 1 {
-			var price float64
 			binary.Read(buf, binary.LittleEndian, &price)
-			var size float64
 			binary.Read(buf, binary.LittleEndian, &size)
-			asks = append(asks, []float64{price, size})
+
+			book.UpdateAskLevel(t, price, size)
 		}
 
-		return map[string]interface{}{
-			"type":     "sync",
-			"sequence": sequence,
-			"bids":     bids,
-			"asks":     asks,
-		}
+		book.Sort()
 
 	case TradePacket:
-		var sequence uint64
 		binary.Read(buf, binary.LittleEndian, &sequence)
-		var side uint8
 		binary.Read(buf, binary.LittleEndian, &side)
-		var price float64
 		binary.Read(buf, binary.LittleEndian, &price)
-		var size float64
 		binary.Read(buf, binary.LittleEndian, &size)
-		return map[string]interface{}{
-			"type":     "trade",
-			"sequence": sequence,
-			"side":     side,
-			"price":    price,
-			"size":     size,
-		}
+
+		book.AddTrade(t, side, price, size)
+
+	default:
+		fmt.Println(book.ProductInfo.DatabaseKey, "unkown packetType", packetType)
+		return false
 	}
 
-	return map[string]interface{}{}
+	return true
 }
