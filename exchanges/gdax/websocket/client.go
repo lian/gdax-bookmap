@@ -10,7 +10,7 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
 
-	"github.com/lian/gdax-bookmap/gdax/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/gdax/orderbook"
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	"github.com/lian/gdax-bookmap/util"
 )

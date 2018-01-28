@@ -1,29 +1,30 @@
 package websocket
 
+// https://github.com/binance-exchange/binance-official-api-docs/blob/master/web-socket-streams.md
+// https://github.com/binance-exchange/binance-official-api-docs/blob/master/rest-api.md
+
 import (
 	"encoding/json"
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
-
-	"github.com/lian/gdax-bookmap/bitstamp/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/binance/orderbook"
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	"github.com/lian/gdax-bookmap/util"
 )
 
 type Client struct {
+	Socket      *websocket.Conn
 	Products    []string
 	Books       map[string]*orderbook.Book
-	Socket      *websocket.Conn
+	ConnectedAt time.Time
 	DB          *bolt.DB
 	dbEnabled   bool
-	LastSync    time.Time
-	LastDiff    time.Time
-	LastDiffSeq uint64
 	BatchWrite  map[string]*util.BookBatchWrite
 	Infos       []*product_info.Info
 }
@@ -36,10 +37,11 @@ func New(db *bolt.DB, products []string) *Client {
 		DB:         db,
 		Infos:      []*product_info.Info{},
 	}
-
 	if c.DB != nil {
 		c.dbEnabled = true
 	}
+
+	// https://api.binance.com/api/v1/exchangeInfo
 
 	for _, name := range products {
 		c.AddProduct(name)
@@ -50,25 +52,35 @@ func New(db *bolt.DB, products []string) *Client {
 		for _, info := range c.Infos {
 			buckets = append(buckets, info.DatabaseKey)
 		}
-		util.CreateBucketsDB(db, buckets)
+		util.CreateBucketsDB(c.DB, buckets)
 	}
 
 	return c
 }
 
+func streamNames(name string) (string, string) {
+	id := strings.ToLower(name)
+	return id + "@depth", id + "@aggTrade"
+}
+
 func (c *Client) AddProduct(name string) {
 	c.Products = append(c.Products, name)
 	c.BatchWrite[name] = &util.BookBatchWrite{Count: 0, Batch: []*util.BatchChunk{}}
+	book := orderbook.New(name)
 	info := orderbook.FetchProductInfo(name)
 	c.Infos = append(c.Infos, &info)
-	book := orderbook.New(name)
-	diff_channel, trades_channel := c.GetChannelNames(book)
+	diff_channel, trades_channel := streamNames(info.ID)
 	c.Books[diff_channel] = book
 	c.Books[trades_channel] = book
 }
 
 func (c *Client) Connect() error {
-	url := "wss://ws.pusherapp.com/app/de504dc5763aeef9ff52?protocol=7&client=js&version=2.1.6&flash=false"
+	streams := []string{}
+	for channel, _ := range c.Books {
+		streams = append(streams, channel)
+	}
+	url := "wss://stream.binance.com:9443/stream?streams=" + strings.Join(streams, "/")
+
 	fmt.Println("connect to websocket", url)
 	s, _, err := websocket.DefaultDialer.Dial(url, nil)
 
@@ -77,94 +89,122 @@ func (c *Client) Connect() error {
 	}
 
 	c.Socket = s
-
-	for channel, _ := range c.Books {
-		c.Subscribe(channel)
-	}
+	c.ConnectedAt = time.Now()
 
 	return nil
 }
 
-func (c *Client) Subscribe(channel string) {
-	a := map[string]interface{}{"event": "pusher:subscribe", "data": map[string]interface{}{"channel": channel}}
-	c.Socket.WriteJSON(a)
+type PacketHeader struct {
+	Stream string          `json:"stream"`
+	Data   json.RawMessage `json:"data"`
 }
 
-func (c *Client) GetChannelNames(book *orderbook.Book) (string, string) {
-	if book.ID == "BTC-USD" {
-		return "diff_order_book", "live_trades"
-	} else {
-		return fmt.Sprintf("diff_order_book_%s", book.WebsocketID), fmt.Sprintf("live_trades_%s", book.WebsocketID)
-	}
+type PacketEventHeader struct {
+	EventType string `json:"e"`
+	EventTime int    `json:"E"`
+	//Symbol        string        `json:"s"`
 }
 
-type Packet struct {
-	Event   string `json:"event"`
-	Channel string `json:"channel"`
-	Data    string `json:"data"`
+type PacketDepthUpdate struct {
+	//EventType     string        `json:"e"`
+	//EventTime     int           `json:"E"`
+	//Symbol        string        `json:"s"`
+	FirstUpdateID uint64        `json:"U"`
+	FinalUpdateID uint64        `json:"u"`
+	Bids          []interface{} `json:"b"` // [ "price", "quantity", []]
+	Asks          []interface{} `json:"a"` // [ "price", "quantity", []]
 }
 
-func (c *Client) UpdateSync(book *orderbook.Book, last uint64) error {
+type PacketAggTrade struct {
+	//EventType        string `json:"e"`
+	//EventTime        int    `json:"E"`
+	//Symbol           string `json:"s"`
+	//AggregateTradeID int    `json:"a"`
+	//TradeTime        int    `json:"T"`
+	//BuyMaker      bool   `json:"m"`
+	//Ignore        bool   `json:"M"`
+	Price         string `json:"p"`
+	Quantity      string `json:"q"`
+	FirstUpdateID int    `json:"f"`
+	FinalUpdateID int    `json:"l"`
+}
+
+func (c *Client) UpdateSync(book *orderbook.Book, first, last uint64) error {
 	seq := book.Sequence
+	next := seq + 1
 
-	if last < seq {
+	if first <= seq {
 		return fmt.Errorf("Ignore old messages %d %d", last, seq)
+	}
+
+	if book.Synced {
+		if first != next {
+			c.SyncBook(book)
+			return fmt.Errorf("Message lost, resync")
+		}
+	} else {
+		if (first <= next) && (last >= next) {
+			book.Synced = true
+		}
 	}
 
 	book.Sequence = last
 	return nil
 }
 
-func (c *Client) HandleMessage(book *orderbook.Book, pkt Packet) {
-	eventTime := time.Now()
+func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
+	var event PacketEventHeader
+	if err := json.Unmarshal(raw, &event); err != nil {
+		log.Println("PacketEventType-parse:", err)
+		return
+	}
+
+	eventTime := time.Unix(0, int64(event.EventTime)*int64(time.Millisecond))
 	var trade *orderbook.Trade
 
-	switch pkt.Event {
-	case "data":
-		//fmt.Println("diff", book.ID, string(pkt.Data))
-
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(pkt.Data), &data); err != nil {
-			log.Println(err)
+	switch event.EventType {
+	case "depthUpdate":
+		var depthUpdate PacketDepthUpdate
+		if err := json.Unmarshal(raw, &depthUpdate); err != nil {
+			log.Println("PacketDepthUpdate-parse:", err)
 			return
 		}
-		seq, _ := strconv.ParseInt(data["timestamp"].(string), 10, 64)
 
-		if err := c.UpdateSync(book, uint64(seq)); err != nil {
+		if err := c.UpdateSync(book, uint64(depthUpdate.FirstUpdateID), uint64(depthUpdate.FinalUpdateID)); err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		for _, d := range data["bids"].([]interface{}) {
+		for _, d := range depthUpdate.Bids {
 			data := d.([]interface{})
 			price, _ := strconv.ParseFloat(data[0].(string), 64)
 			size, _ := strconv.ParseFloat(data[1].(string), 64)
 			book.UpdateBidLevel(eventTime, price, size)
 		}
 
-		for _, d := range data["asks"].([]interface{}) {
+		for _, d := range depthUpdate.Asks {
 			data := d.([]interface{})
 			price, _ := strconv.ParseFloat(data[0].(string), 64)
 			size, _ := strconv.ParseFloat(data[1].(string), 64)
 			book.UpdateAskLevel(eventTime, price, size)
 		}
 
-	case "trade":
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(pkt.Data), &data); err != nil {
-			log.Println(err)
+	case "aggTrade":
+		var data PacketAggTrade
+		if err := json.Unmarshal(raw, &data); err != nil {
+			log.Println("PacketDepthUpdate-parse:", err)
 			return
 		}
 
-		price, _ := strconv.ParseFloat(data["price_str"].(string), 64)
-		size, _ := strconv.ParseFloat(data["amount_str"].(string), 64)
-		side := book.GetSide(price)
+		price, _ := strconv.ParseFloat(data.Price, 64)
+		size, _ := strconv.ParseFloat(data.Quantity, 64)
 
+		side := book.GetSide(price)
 		book.AddTrade(eventTime, side, price, size)
 		trade = book.Trades[len(book.Trades)-1]
 
 	default:
-		fmt.Println("unkown event", book.ID, pkt.Event, string(pkt.Data))
+		fmt.Println("unkown event", book.ID, event.EventType, string(raw))
 		return
 	}
 
@@ -217,6 +257,7 @@ func (c *Client) run() {
 		time.Sleep(1000 * time.Millisecond)
 		return
 	}
+
 	defer c.Socket.Close()
 
 	for {
@@ -230,33 +271,16 @@ func (c *Client) run() {
 			continue
 		}
 
-		var pkt Packet
+		var pkt PacketHeader
 		if err := json.Unmarshal(message, &pkt); err != nil {
-			log.Println("header-parse:", err)
+			log.Println("PacketHeader-parse:", err)
 			continue
 		}
 
-		switch pkt.Event {
-		// pusher stuff
-		case "pusher:connection_established":
-			log.Println("Connected")
-			continue
-		case "pusher_internal:subscription_succeeded":
-			log.Println("Subscribed")
-			continue
-		case "pusher:pong":
-			// ignore
-			continue
-		case "pusher:ping":
-			c.Socket.WriteJSON(map[string]interface{}{"event": "pusher:pong"})
-			continue
-		}
-
-		var ok bool
 		var book *orderbook.Book
-
-		if book, ok = c.Books[pkt.Channel]; !ok {
-			log.Println("book not found", pkt.Channel)
+		var ok bool
+		if book, ok = c.Books[pkt.Stream]; !ok {
+			log.Println("book not found", pkt.Stream)
 			continue
 		}
 
@@ -265,6 +289,6 @@ func (c *Client) run() {
 			continue
 		}
 
-		c.HandleMessage(book, pkt)
+		c.HandleMessage(book, pkt.Data)
 	}
 }

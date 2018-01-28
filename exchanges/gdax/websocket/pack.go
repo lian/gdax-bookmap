@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/lian/gdax-bookmap/gdax/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/gdax/orderbook"
 	db_orderbook "github.com/lian/gdax-bookmap/orderbook"
 )
 

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/lian/gdax-bookmap/gdax/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/gdax/orderbook"
 )
 
 func (c *Client) SyncBook(book *orderbook.Book) error {

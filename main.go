@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -17,10 +16,10 @@ import (
 
 	//_ "net/http/pprof"
 
-	binance_websocket "github.com/lian/gdax-bookmap/binance/websocket"
-	bitfinex_websocket "github.com/lian/gdax-bookmap/bitfinex/websocket"
-	bitstamp_websocket "github.com/lian/gdax-bookmap/bitstamp/websocket"
-	gdax_websocket "github.com/lian/gdax-bookmap/gdax/websocket"
+	binance_websocket "github.com/lian/gdax-bookmap/exchanges/binance/websocket"
+	bitfinex_websocket "github.com/lian/gdax-bookmap/exchanges/bitfinex/websocket"
+	bitstamp_websocket "github.com/lian/gdax-bookmap/exchanges/bitstamp/websocket"
+	gdax_websocket "github.com/lian/gdax-bookmap/exchanges/gdax/websocket"
 
 	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
@@ -87,7 +86,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		bm := bookmaps[ActiveProduct]
 		bm.ViewportStep = bm.ViewportStep * 2
 		bm.Graph.SlotSteps = bm.ViewportStep
-		start := bm.Graph.CurrentTime.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
+		start := bm.Graph.End.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
 		bm.Graph.SetStart(start)
 
 		for _, bookmap := range bookmaps {
@@ -102,7 +101,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 			bm.ViewportStep = 1
 		}
 		bm.Graph.SlotSteps = bm.ViewportStep
-		start := bm.Graph.CurrentTime.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
+		start := bm.Graph.End.Add(time.Duration((bm.ViewportStep*bm.Graph.SlotCount)*-1) * time.Second)
 		bm.Graph.SetStart(start)
 
 		for _, bookmap := range bookmaps {
@@ -227,12 +226,8 @@ func resizeCallback(_ *glfw.Window, width int, height int) {
 	SetupPerspective(width, height, program)
 }
 
-//var WindowWidth int = 1250
-var WindowWidth int = 1280
-var WindowHeight int = 720
-
-//var WindowWidth int = 1920
-//var WindowHeight int = 1080
+var WindowWidth int
+var WindowHeight int
 
 var program *shader.Program
 
@@ -244,12 +239,13 @@ var ActivePlatform string
 var infos []*product_info.Info
 
 func main() {
-	fmt.Printf("VERSION gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
-	//flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp-Binance", "Active Platform")
-	flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp-Binance-Bitfinex", "Active Platform")
-	//flag.StringVar(&ActivePlatform, "platform", "GDAX-Bitstamp", "Active Platform")
-	//flag.StringVar(&ActivePlatform, "platform", "Bitstamp", "Active Platform")
-	//flag.StringVar(&ActivePlatform, "platform", "Bitfinex", "Active Platform")
+	var db_path string
+	fmt.Printf("Starting gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
+	//flag.StringVar(&ActivePlatform, "platforms", "gdax-bitstamp-binance-bitfinex", "active platforms")
+	flag.StringVar(&ActivePlatform, "platforms", "gdax-bitstamp-bitfinex", "active platforms")
+	flag.StringVar(&db_path, "db", "orderbooks.db", "database file")
+	flag.IntVar(&WindowWidth, "w", 1280, "window width")
+	flag.IntVar(&WindowHeight, "h", 720, "window height")
 	flag.Parse()
 
 	/*
@@ -273,7 +269,7 @@ func main() {
 	//WindowWidth := screenInfo.Width
 	//WindowHeight := screenInfo.Height
 
-	window, err := glfw.CreateWindow(WindowWidth, WindowHeight, "gdax-go", nil, nil)
+	window, err := glfw.CreateWindow(WindowWidth, WindowHeight, "gdax-bookmap", nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -302,17 +298,13 @@ func main() {
 	w, h := window.GetFramebufferSize()
 	SetupPerspective(w, h, program)
 
-	path := "orderbooks.db"
-	if os.Getenv("DB_PATH") != "" {
-		path = os.Getenv("DB_PATH")
-	}
-	db := util.OpenDB(path, []string{}, false)
+	db := util.OpenDB(db_path, []string{}, false)
 
 	//bookUpdated := make(chan string, 1024)
 	//tradesUpdated := make(chan string)
 	infos = make([]*product_info.Info, 0)
 
-	if strings.Contains(ActivePlatform, "GDAX") {
+	if strings.Contains(strings.ToLower(ActivePlatform), "gdax") {
 		//ws := gdax_websocket.New(db, []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"})
 		//ws := gdax_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
 		ws := gdax_websocket.New(db, []string{"BTC-USD"})
@@ -323,7 +315,7 @@ func main() {
 		}
 		ActiveProduct = infos[0].DatabaseKey
 	}
-	if strings.Contains(ActivePlatform, "Bitstamp") {
+	if strings.Contains(strings.ToLower(ActivePlatform), "bitstamp") {
 		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "XRP-USD"})
 		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
 		ws := bitstamp_websocket.New(db, []string{"BTC-USD"})
@@ -334,7 +326,7 @@ func main() {
 		}
 		ActiveProduct = infos[0].DatabaseKey
 	}
-	if strings.Contains(ActivePlatform, "Binance") {
+	if strings.Contains(strings.ToLower(ActivePlatform), "binance") {
 		ws := binance_websocket.New(db, []string{"BTC-USDT"})
 		go ws.Run()
 		for _, info := range ws.Infos {
@@ -342,8 +334,7 @@ func main() {
 		}
 		ActiveProduct = infos[0].DatabaseKey
 	}
-
-	if strings.Contains(ActivePlatform, "Bitfinex") {
+	if strings.Contains(strings.ToLower(ActivePlatform), "bitfinex") {
 		ws := bitfinex_websocket.New(db, []string{"BTC-USD"})
 		go ws.Run()
 		for _, info := range ws.Infos {

@@ -6,16 +6,15 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/lian/gdax-bookmap/binance/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/bitstamp/orderbook"
 )
 
 func (c *Client) SyncBook(book *orderbook.Book) error {
 	fmt.Println("sync", book.ID)
 
-	url := fmt.Sprintf("https://www.binance.com/api/v1/depth?symbol=%s&limit=1000", strings.ToUpper(book.ProductInfo.ID))
+	url := fmt.Sprintf("https://www.bitstamp.net/api/v2/order_book/%s", book.WebsocketID)
 	res, err := http.Get(url)
 	if err != nil {
 		return err
@@ -31,9 +30,10 @@ func (c *Client) SyncBook(book *orderbook.Book) error {
 		return err
 	}
 
-	if seq, ok := data["lastUpdateId"]; ok {
+	if _, ok := data["timestamp"]; ok {
 		book.Clear()
-		book.Sequence = uint64(seq.(float64))
+		seq, _ := strconv.ParseInt(data["timestamp"].(string), 10, 64)
+		book.Sequence = uint64(seq)
 
 		t := time.Now()
 
@@ -41,8 +41,8 @@ func (c *Client) SyncBook(book *orderbook.Book) error {
 			for i := len(bids) - 1; i >= 0; i-- {
 				data := bids[i].([]interface{})
 				price, _ := strconv.ParseFloat(data[0].(string), 64)
-				quantity, _ := strconv.ParseFloat(data[1].(string), 64)
-				book.UpdateBidLevel(t, price, quantity)
+				size, _ := strconv.ParseFloat(data[1].(string), 64)
+				book.UpdateBidLevel(t, price, size)
 			}
 		}
 
@@ -50,8 +50,8 @@ func (c *Client) SyncBook(book *orderbook.Book) error {
 			for i := len(asks) - 1; i >= 0; i-- {
 				data := asks[i].([]interface{})
 				price, _ := strconv.ParseFloat(data[0].(string), 64)
-				quantity, _ := strconv.ParseFloat(data[1].(string), 64)
-				book.UpdateAskLevel(t, price, quantity)
+				size, _ := strconv.ParseFloat(data[1].(string), 64)
+				book.UpdateAskLevel(t, price, size)
 			}
 		}
 

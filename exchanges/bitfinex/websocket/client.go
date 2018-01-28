@@ -12,7 +12,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/gorilla/websocket"
-	"github.com/lian/gdax-bookmap/bitfinex/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/bitfinex/orderbook"
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	"github.com/lian/gdax-bookmap/util"
 )

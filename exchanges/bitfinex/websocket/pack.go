@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/lian/gdax-bookmap/binance/orderbook"
+	"github.com/lian/gdax-bookmap/exchanges/bitfinex/orderbook"
 	db_orderbook "github.com/lian/gdax-bookmap/orderbook"
 )
 
