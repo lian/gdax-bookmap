@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -14,22 +15,16 @@ const (
 )
 
 func UnpackTimeKey(key []byte) time.Time {
-	buf := bytes.NewBuffer(key)
-	var nano int64
-	binary.Read(buf, binary.BigEndian, &nano)
-	return time.Unix(0, nano)
+	i, _ := strconv.ParseInt(string(key), 10, 64)
+	return time.Unix(0, i)
 }
 
 func PackTimeKey(t time.Time) []byte {
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, t.UnixNano())
-	return buf.Bytes()
+	return []byte(fmt.Sprintf("%d", t.UnixNano()))
 }
 
 func PackUnixNanoKey(nano int64) []byte {
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, nano)
-	return buf.Bytes()
+	return []byte(fmt.Sprintf("%d", nano))
 }
 
 func (book *Book) UpdateSync(first, last uint64) error {
