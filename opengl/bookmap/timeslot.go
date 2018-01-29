@@ -118,6 +118,10 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 	for i := len(stats.Bid) - 1; i >= 0; i-- {
 		state := stats.Bid[i]
 
+		if state.TradeSize > 0 {
+			s.BidTradeSize += state.TradeSize
+		}
+
 		if state.Price > high || state.Price <= low {
 			continue
 		}
@@ -143,16 +147,16 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 			}
 		}
 
-		if state.TradeSize > 0 {
-			s.BidTradeSize += state.TradeSize
-		}
-
 		if row.Size > maxSize {
 			maxSize = row.Size
 		}
 	}
 
 	for _, state := range stats.Ask {
+		if state.TradeSize > 0 {
+			s.AskTradeSize += state.TradeSize
+		}
+
 		if state.Price > high || state.Price <= low {
 			continue
 		}
@@ -176,10 +180,6 @@ func (s *TimeSlot) Fill(stats *orderbook.BookMapStatsCopy) {
 			if state.Price < s.AskPrice {
 				s.AskPrice = state.Price
 			}
-		}
-
-		if state.TradeSize > 0 {
-			s.AskTradeSize += state.TradeSize
 		}
 
 		if row.Size > maxSize {
