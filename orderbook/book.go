@@ -128,7 +128,7 @@ func (b *Book) Sort() {
 }
 
 func (b *Book) AddTrade(t time.Time, side uint8, price, quantity float64) {
-	if len(b.Trades) >= 50 {
+	if len(b.Trades) >= 25 {
 		// remove and free first item
 		copy(b.Trades[0:], b.Trades[1:])
 		b.Trades[len(b.Trades)-1] = nil
@@ -138,30 +138,12 @@ func (b *Book) AddTrade(t time.Time, side uint8, price, quantity float64) {
 	b.Trades = append(b.Trades, trade)
 
 	if trade.Side == BidSide {
-		var found bool
-		for _, level := range b.Bid {
-			if level.Price == price {
-				level.TradeSize += quantity
-				found = true
-				break
-			}
-		}
-		if !found {
-			// add
-			b.Bid = append(b.Bid, &BookLevel{Price: price, TradeSize: quantity})
+		if len(b.Bid) != 0 {
+			b.Bid[0].TradeSize += quantity
 		}
 	} else {
-		for _, level := range b.Ask {
-			var found bool
-			if level.Price == price {
-				level.TradeSize += quantity
-				found = true
-				break
-			}
-			if !found {
-				// add
-				b.Ask = append(b.Ask, &BookLevel{Price: price, TradeSize: quantity})
-			}
+		if len(b.Ask) != 0 {
+			b.Ask[0].TradeSize += quantity
 		}
 	}
 }

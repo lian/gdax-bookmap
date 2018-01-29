@@ -17,7 +17,7 @@ func UnpackTimeKey(key []byte) time.Time {
 	buf := bytes.NewBuffer(key)
 	var nano int64
 	binary.Read(buf, binary.BigEndian, &nano)
-	return time.Unix(0, i)
+	return time.Unix(0, nano)
 }
 
 func PackTimeKey(t time.Time) []byte {
