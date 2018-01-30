@@ -3,7 +3,7 @@ export GOPATH=$HOME/go
 
 cd "$(dirname ${BASH_SOURCE[0]})"
 
-set -x
+set -xe
 
 mkdir -p builds/tmp
 cd builds/tmp
@@ -11,7 +11,7 @@ cd builds/tmp
 version=0.0.5
 githash=$(git rev-parse HEAD)
 
-/opt/bin/xgo -v -x  -ldflags "-X main.AppVersion=$version -X main.AppGitHash=$githash" --targets=darwin/amd64,windows/386 ../../../
+/opt/bin/xgo -v -go 1.9.2 -x  -ldflags "-X main.AppVersion=$version -X main.AppGitHash=$githash" --targets=darwin/amd64,windows/386 ../../../
 mv gdax-bookmap-windows-4.0-386.exe gdax-bookmap.exe
 zip -r ../gdax-bookmap-win32.zip gdax-bookmap.exe
 rm -f gdax-bookmap.exe
