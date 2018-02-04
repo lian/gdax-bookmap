@@ -101,12 +101,6 @@ type PacketHeader struct {
 	Data   json.RawMessage `json:"data"`
 }
 
-type PacketEventHeader struct {
-	EventType string `json:"e"`
-	EventTime int    `json:"E"`
-	//Symbol        string        `json:"s"`
-}
-
 type PacketDepthUpdate struct {
 	//EventType     string        `json:"e"`
 	//EventTime     int           `json:"E"`
@@ -155,16 +149,30 @@ func (c *Client) UpdateSync(book *orderbook.Book, first, last uint64) error {
 }
 
 func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
-	var event PacketEventHeader
-	if err := json.Unmarshal(raw, &event); err != nil {
+	var tmp map[string]interface{}
+	if err := json.Unmarshal(raw, &tmp); err != nil {
 		log.Println("PacketEventType-parse:", err)
 		return
 	}
 
-	eventTime := time.Unix(0, int64(event.EventTime)*int64(time.Millisecond))
+	var eventType string
+	var eventTimeValue float64
+	var ok bool
+
+	if eventType, ok = tmp["e"].(string); !ok {
+		log.Println("PacketEventType-parse: failed to decode eventType")
+		return
+	}
+
+	if eventTimeValue, ok = tmp["E"].(float64); !ok {
+		log.Println("PacketEventType-parse: failed to decode eventTime")
+		return
+	}
+	eventTime := time.Unix(0, int64(eventTimeValue)*int64(time.Millisecond))
+
 	var trade *orderbook.Trade
 
-	switch event.EventType {
+	switch eventType {
 	case "depthUpdate":
 		var depthUpdate PacketDepthUpdate
 		if err := json.Unmarshal(raw, &depthUpdate); err != nil {
@@ -206,7 +214,7 @@ func (c *Client) HandleMessage(book *orderbook.Book, raw json.RawMessage) {
 		trade = book.Trades[len(book.Trades)-1]
 
 	default:
-		fmt.Println("unkown event", book.ID, event.EventType, string(raw))
+		fmt.Println("unkown event", book.ID, eventType, string(raw))
 		return
 	}
 
