@@ -38,13 +38,18 @@ func FetchAllProductInfo() {
 		for _, p := range symbols {
 			i := p.(map[string]interface{})
 
+			baseAsset := i["baseAsset"].(string)
+			if baseAsset == "BCC" {
+				baseAsset = "BCH"
+			}
+
 			info := product_info.Info{
 				ID:            i["symbol"].(string),
-				DisplayName:   fmt.Sprintf("%s-%s", i["baseAsset"].(string), i["quoteAsset"].(string)),
-				BaseCurrency:  i["baseAsset"].(string),
+				DisplayName:   fmt.Sprintf("%s-%s", baseAsset, i["quoteAsset"].(string)),
+				BaseCurrency:  baseAsset,
 				QuoteCurrency: i["quoteAsset"].(string),
 				Platform:      "Binance",
-				DatabaseKey:   fmt.Sprintf("Binance-%s-%s", i["baseAsset"].(string), i["quoteAsset"].(string)),
+				DatabaseKey:   fmt.Sprintf("Binance-%s-%s", baseAsset, i["quoteAsset"].(string)),
 			}
 
 			if filters, ok := i["filters"].([]interface{}); ok {

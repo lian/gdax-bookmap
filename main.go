@@ -70,6 +70,8 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 		SetActiveBaseCurrency("BTC")
 	} else if key == glfw.Key2 && action == glfw.Press {
 		SetActiveBaseCurrency("ETH")
+	} else if key == glfw.Key3 && action == glfw.Press {
+		SetActiveBaseCurrency("BCH")
 		/*
 			} else if key == glfw.Key1 && action == glfw.Press {
 				SetActiveProduct(0)
@@ -349,7 +351,7 @@ func main() {
 	if strings.Contains(strings.ToLower(ActivePlatform), "gdax") {
 		//ws := gdax_websocket.New(db, []string{"BTC-USD", "BTC-EUR", "LTC-USD", "ETH-USD", "ETH-BTC", "LTC-BTC", "BCH-USD", "BCH-BTC"})
 		//ws := gdax_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
-		ws := gdax_websocket.New(db, []string{"BTC-USD", "ETH-USD"})
+		ws := gdax_websocket.New(db, []string{"BTC-USD", "ETH-USD", "BCH-USD"})
 		//ws := gdax_websocket.New(db, []string{"BCH-EUR"})
 		go ws.Run()
 		for _, info := range ws.Infos {
@@ -360,7 +362,7 @@ func main() {
 	if strings.Contains(strings.ToLower(ActivePlatform), "bitstamp") {
 		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD", "XRP-USD"})
 		//ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "LTC-USD", "BCH-USD"})
-		ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD"})
+		ws := bitstamp_websocket.New(db, []string{"BTC-USD", "ETH-USD", "BCH-USD"})
 		//ws := bitstamp_websocket.New(db, []string{"BCH-EUR"})
 		go ws.Run()
 		for _, info := range ws.Infos {
@@ -369,7 +371,7 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 	if strings.Contains(strings.ToLower(ActivePlatform), "binance") {
-		ws := binance_websocket.New(db, []string{"BTC-USDT", "ETH-USDT"})
+		ws := binance_websocket.New(db, []string{"BTC-USDT", "ETH-USDT", "BCH-USDT"})
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
@@ -377,7 +379,7 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 	if strings.Contains(strings.ToLower(ActivePlatform), "bitfinex") {
-		ws := bitfinex_websocket.New(db, []string{"BTC-USD", "ETH-USD"})
+		ws := bitfinex_websocket.New(db, []string{"BTC-USD", "ETH-USD", "BCH-USD"})
 		go ws.Run()
 		for _, info := range ws.Infos {
 			infos = append(infos, info)
