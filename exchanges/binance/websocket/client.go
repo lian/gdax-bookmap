@@ -61,6 +61,7 @@ func New(db *bolt.DB, products []string) *Client {
 
 func streamNames(name string) (string, string) {
 	id := strings.ToLower(name)
+	//return id + "@depth.b10", id + "@aggTrade.b10" // ?! new
 	return id + "@depth", id + "@aggTrade"
 }
 
@@ -81,7 +82,8 @@ func (c *Client) Connect() error {
 	for channel, _ := range c.Books {
 		streams = append(streams, channel)
 	}
-	url := "wss://stream.binance.com:9443/stream?streams=" + strings.Join(streams, "/")
+	//url := "wss://stream.binance.com:9443/stream?streams=" + strings.Join(streams, "/")
+	url := "wss://stream2.binance.com:9443/stream?streams=" + strings.Join(streams, "/")
 
 	fmt.Println("connect to websocket", url)
 	s, _, err := websocket.DefaultDialer.Dial(url, nil)
