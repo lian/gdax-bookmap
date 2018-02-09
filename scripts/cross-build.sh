@@ -8,7 +8,7 @@ set -xe
 mkdir -p builds/tmp
 cd builds/tmp
 
-version=0.0.5
+version=0.0.6
 githash=$(git rev-parse HEAD)
 
 /opt/bin/xgo -v -go 1.9.2 -x  -ldflags "-X main.AppVersion=$version -X main.AppGitHash=$githash" --targets=darwin/amd64,windows/386 ../../../
