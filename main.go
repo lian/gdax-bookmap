@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -205,7 +206,8 @@ func main() {
 	var windowHeight int
 
 	fmt.Printf("Starting gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
-	flag.StringVar(&ActivePlatform, "platforms", "gdax-bitstamp-binance-bitfinex", "active platforms")
+	//flag.StringVar(&ActivePlatform, "platforms", "gdax-bitstamp-binance-bitfinex", "active platforms")
+	flag.StringVar(&ActivePlatform, "platforms", "gdax-bitstamp-binance", "active platforms")
 	flag.StringVar(&ActiveBase, "base", "BTC", "active BaseCurrency")
 	flag.StringVar(&db_path, "db", "orderbooks.db", "database file")
 	flag.IntVar(&windowWidth, "w", 0, "window width")
@@ -214,7 +216,12 @@ func main() {
 
 	//runpprof()
 
-	db := util.OpenDB(db_path, []string{}, false)
+	db, err := util.OpenDB(db_path, []string{}, false)
+	if err != nil {
+		fmt.Println("OpenDB Error", err)
+		os.Exit(0)
+	}
+
 	infos = make([]*product_info.Info, 0)
 
 	if strings.Contains(strings.ToLower(ActivePlatform), "gdax") {

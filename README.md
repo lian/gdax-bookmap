@@ -14,6 +14,21 @@ cd $GOPATH/src/github.com/lian/gdax-bookmap
 ./script/build.sh
 ```
 
+## command flags
+```
+Usage of gdax-bookmap:
+  -base string
+        active BaseCurrency (default "BTC")
+  -db string
+        database file (default "orderbooks.db")
+  -h int
+        window height
+  -platforms string
+        active platforms (default "gdax-bitstamp-binance")
+  -w int
+        window width
+```
+
 ## current controls
 
 ```
