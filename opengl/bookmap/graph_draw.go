@@ -206,15 +206,21 @@ func (g *Graph) DrawTimeline(gc *draw2dimg.GraphicContext, image *image.RGBA, x,
 			break
 		}
 
-		if math.Mod(float64(idx), 30) == 0 {
-			/*
-				gc.SetLineWidth(1.0)
-				gc.SetFillColor(g.Bg1)
-				gc.MoveTo(cx, 0)
-				gc.LineTo(cx, y)
-				gc.Fill()
-			*/
-			font.DrawString(image, int(x), int(y), slot.From.Format("15:04:05"), g.Fg1)
+		if g.NoTimeout {
+			if math.Mod(float64(idx), 100) == 0 {
+				font.DrawString(image, int(x), int(y), slot.From.Format("01-02-2006 15:04:05"), g.Fg1)
+			}
+		} else {
+			if math.Mod(float64(idx), 30) == 0 {
+				/*
+					gc.SetLineWidth(1.0)
+					gc.SetFillColor(g.Bg1)
+					gc.MoveTo(cx, 0)
+					gc.LineTo(cx, y)
+					gc.Fill()
+				*/
+				font.DrawString(image, int(x), int(y), slot.From.Format("15:04:05"), g.Fg1)
+			}
 		}
 	}
 }

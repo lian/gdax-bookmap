@@ -30,6 +30,7 @@ type Graph struct {
 	Bg1         color.RGBA
 	Fg1         color.RGBA
 	CurrentSlot *TimeSlot
+	NoTimeout   bool
 }
 
 func NewGraph(db *bolt.DB, productID string, width, height, slotWidth, slotSteps int) *Graph {
@@ -158,7 +159,7 @@ func (g *Graph) ProcessTimeslots() {
 
 		c.Seek(orderbook.PackTimeKey(g.CurrentTime))
 		for {
-			if time.Now().Sub(processingStart).Seconds() >= 1.0 {
+			if !g.NoTimeout && time.Now().Sub(processingStart).Seconds() >= 1.0 {
 				fmt.Println(g.ProductID, "defer processing", g.CurrentTime)
 				break
 			}
@@ -191,6 +192,9 @@ func (g *Graph) ProcessTimeslots() {
 			if t.After(slot.To) {
 				slot.Stats = g.Book.StatsCopy()
 				g.CurrentSlot = g.NextSlot(t)
+				if g.NoTimeout {
+					fmt.Println("moved to next slot", g.CurrentSlot.From, g.CurrentSlot.To)
+				}
 				/*
 					if g.CurrentSlot == nil {
 						fmt.Println(g.ProductID, "next slot nil", lastTime)

@@ -393,7 +393,7 @@ func main() {
 	padding := 10.0
 	x := padding
 
-	count := len(infos) / 2
+	count := len(infos) / 3
 	for _, info := range infos {
 		//bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, 1260, 680/3, x, *info, db)
 		bookmaps[info.DatabaseKey] = opengl_bookmap.New(program, float64(WindowWidth)-20, float64((WindowHeight-4)/count), x, *info, db)
@@ -450,7 +450,7 @@ func main() {
 		//bookmaps[ActiveProduct].Texture.Draw()
 		//trades[ActiveProduct].Texture.Draw()
 
-		count := len(infos) / 2
+		count := len(infos) / 3
 		n := 0
 		for _, info := range infos {
 			if info.BaseCurrency == ActiveBase {
