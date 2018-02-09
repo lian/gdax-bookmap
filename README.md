@@ -1,6 +1,6 @@
 # gdax-bookmap - orderbook depths graph
 
-![image](http://i.imgur.com/UNSFAHP.png)
+![image](https://i.imgur.com/M0s0o9V.png)
 
 ## pre-compiled for macOS and Windows
 [Alpha Releases](https://github.com/lian/gdax-bookmap/releases)
