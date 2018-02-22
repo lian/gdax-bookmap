@@ -57,9 +57,9 @@ func FetchAllProductInfo() {
 					fi := f.(map[string]interface{})
 					if fi["filterType"].(string) == "PRICE_FILTER" {
 						t, _ := strconv.ParseFloat(fi["minPrice"].(string), 64)
-						info.BaseMinSize = product_info.FloatString(t)
+						info.BaseMinSize = t
 						t, _ = strconv.ParseFloat(fi["maxPrice"].(string), 64)
-						info.BaseMaxSize = product_info.FloatString(t)
+						info.BaseMaxSize = t
 						info.QuoteIncrement = info.BaseMinSize
 						info.FloatFormat = fmt.Sprintf("%%.%df", util.NumDecPlaces(float64(info.QuoteIncrement)))
 						CachedInfo[info.DisplayName] = info

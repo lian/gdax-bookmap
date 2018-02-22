@@ -57,9 +57,9 @@ func FetchAllProductInfo() {
 		}
 
 		t, _ := strconv.ParseFloat(i["minimum_order_size"].(string), 64)
-		info.BaseMinSize = product_info.FloatString(t)
+		info.BaseMinSize = t
 		t, _ = strconv.ParseFloat(i["maximum_order_size"].(string), 64)
-		info.BaseMaxSize = product_info.FloatString(t)
+		info.BaseMaxSize = t
 
 		info.QuoteIncrement = info.BaseMinSize
 		//info.FloatFormat = fmt.Sprintf("%%.%df", util.NumDecPlaces(float64(info.QuoteIncrement)))
