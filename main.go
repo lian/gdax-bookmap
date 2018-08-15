@@ -6,10 +6,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
+	"github.com/faiface/mainthread"
 	"github.com/go-gl/glfw/v3.2/glfw"
 
 	//_ "net/http/pprof"
@@ -30,7 +30,7 @@ var (
 )
 
 func init() {
-	runtime.LockOSThread()
+	//runtime.LockOSThread()
 }
 
 func SetActiveProduct(index int) {
@@ -200,7 +200,7 @@ var ActiveProduct string
 var ActivePlatform string
 var infos []*product_info.Info
 
-func main() {
+func run() {
 	var db_path string
 	var windowWidth int
 	var windowHeight int
@@ -257,11 +257,16 @@ func main() {
 		ActiveProduct = infos[0].DatabaseKey
 	}
 
-	win, err := NewWindow(windowWidth, windowHeight)
-	if err != nil {
-		panic(err)
-	}
-	win.AddKeyCallback(keyCallback)
+	var win *Window
+
+	mainthread.Call(func() {
+		var err error
+		win, err = NewWindow(windowWidth, windowHeight)
+		if err != nil {
+			panic(err)
+		}
+		win.AddKeyCallback(keyCallback)
+	})
 
 	bookmaps = map[string]*opengl_bookmap.Bookmap{}
 
@@ -270,20 +275,45 @@ func main() {
 
 	count := len(infos) / 3
 	for _, info := range infos {
+		//mainthread.Call(func() {
 		bookmaps[info.DatabaseKey] = opengl_bookmap.New(win.Shader, float64(win.Width)-(padding*2), float64((win.Height-4)/count), x, *info, db)
+		//})
 	}
 
+	//mainthread.Call(func() {
 	pollEventsTimer := time.NewTicker(time.Millisecond * 100)
 	second := time.NewTicker(time.Second * 1)
+	//var wg sync.WaitGroup
 
 	for !win.ShouldClose() {
 		select {
 		case <-pollEventsTimer.C:
-			win.PollEvents()
+			mainthread.Call(func() {
+				win.PollEvents()
+			})
 			continue
 		case <-win.redrawChan:
 			// force quick redraw (window resized/moved)
 		case <-second.C:
+			/*
+				start := time.Now()
+				wg.Add(len(infos))
+				for _, info := range infos {
+					if info.BaseCurrency == ActiveBase {
+						go func(key string) {
+							bookmaps[key].Render()
+							wg.Done()
+						}(info.DatabaseKey)
+					} else {
+						go func(key string) {
+							bookmaps[key].Progress()
+							wg.Done()
+						}(info.DatabaseKey)
+					}
+				}
+				wg.Wait()
+				fmt.Println("rendering took", time.Since(start))
+			*/
 			for _, info := range infos {
 				if info.BaseCurrency == ActiveBase {
 					bookmaps[info.DatabaseKey].Render()
@@ -292,17 +322,24 @@ func main() {
 				}
 			}
 		}
-		win.BeginFrame()
+		mainthread.Call(func() {
+			win.BeginFrame()
 
-		count := len(infos) / 3
-		n := 0
-		for _, info := range infos {
-			if info.BaseCurrency == ActiveBase {
-				bookmaps[info.DatabaseKey].Texture.DrawAt(float32(10), float32(win.Height)-float32(n*(win.Height/count)))
-				n += 1
+			count := len(infos) / 3
+			n := 0
+			for _, info := range infos {
+				if info.BaseCurrency == ActiveBase {
+					bookmaps[info.DatabaseKey].Texture.DrawAt(float32(10), float32(win.Height)-float32(n*(win.Height/count)))
+					n += 1
+				}
 			}
-		}
 
-		win.EndFrame()
+			win.EndFrame()
+		})
 	}
+	//})
+}
+
+func main() {
+	mainthread.Run(run) // enables mainthread package and runs run in a separate goroutine
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/faiface/mainthread"
 	"github.com/lian/gdax-bookmap/orderbook/product_info"
 	font "github.com/lian/gonky/font/terminus"
 
@@ -61,7 +62,11 @@ func New(program *shader.Program, width, height float64, x float64, info product
 
 	s.PriceSteps = float64(s.ProductInfo.QuoteIncrement) * 500
 	if program != nil {
-		s.Texture.Setup(program)
+		mainthread.Call(func() {
+			s.Texture.Setup(program)
+		})
+	} else {
+		s.IgnoreTexture = true
 	}
 	s.Image = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width), int(s.Texture.Height)))
 	s.GraphImage = image.NewRGBA(image.Rect(0, 0, int(s.Texture.Width-145), int(s.Texture.Height-s.RowHeight)))
@@ -109,7 +114,9 @@ func (s *Bookmap) WriteTexture() {
 	if s.IgnoreTexture {
 		return
 	}
-	s.Texture.Write(&s.Image.Pix)
+	mainthread.Call(func() {
+		s.Texture.Write(&s.Image.Pix)
+	})
 }
 
 func (s *Bookmap) DrawString(x, y int, text string, color color.RGBA) {
