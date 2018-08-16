@@ -17,6 +17,7 @@ import (
 	binance_websocket "github.com/lian/gdax-bookmap/exchanges/binance/websocket"
 	bitfinex_websocket "github.com/lian/gdax-bookmap/exchanges/bitfinex/websocket"
 	bitstamp_websocket "github.com/lian/gdax-bookmap/exchanges/bitstamp/websocket"
+	coinbase_websocket "github.com/lian/gdax-bookmap/exchanges/coinbase/websocket"
 	gdax_websocket "github.com/lian/gdax-bookmap/exchanges/gdax/websocket"
 
 	opengl_bookmap "github.com/lian/gdax-bookmap/opengl/bookmap"
@@ -207,7 +208,7 @@ func run() {
 
 	fmt.Printf("Starting gdax-bookmap %s-%s\n", AppVersion, AppGitHash)
 	//flag.StringVar(&ActivePlatform, "platforms", "gdax-bitstamp-binance-bitfinex", "active platforms")
-	flag.StringVar(&ActivePlatform, "platforms", "gdax-bitstamp-binance", "active platforms")
+	flag.StringVar(&ActivePlatform, "platforms", "coinbase-bitstamp-binance", "active platforms")
 	flag.StringVar(&ActiveBase, "base", "BTC", "active BaseCurrency")
 	flag.StringVar(&db_path, "db", "orderbooks.db", "database file")
 	flag.IntVar(&windowWidth, "w", 0, "window width")
@@ -224,6 +225,14 @@ func run() {
 
 	infos = make([]*product_info.Info, 0)
 
+	if strings.Contains(strings.ToLower(ActivePlatform), "coinbase") {
+		ws := coinbase_websocket.New(db, []string{"BTC-USD", "ETH-USD", "BCH-USD"})
+		go ws.Run()
+		for _, info := range ws.Infos {
+			infos = append(infos, info)
+		}
+		ActiveProduct = infos[0].DatabaseKey
+	}
 	if strings.Contains(strings.ToLower(ActivePlatform), "gdax") {
 		ws := gdax_websocket.New(db, []string{"BTC-USD", "ETH-USD", "BCH-USD"})
 		go ws.Run()
